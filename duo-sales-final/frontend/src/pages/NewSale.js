@@ -6,6 +6,15 @@ import { useNavigate } from 'react-router-dom';
 const INPUT = { width: '100%', background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 8, padding: '9px 12px', color: 'var(--text)', fontSize: 13, outline: 'none', boxSizing: 'border-box' };
 const LABEL = { display: 'block', fontSize: 11, color: 'var(--muted)', fontWeight: 500, marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.3px' };
 
+function Field({ label, children }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <label style={LABEL}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
 export default function NewSale() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -49,13 +58,6 @@ export default function NewSale() {
       setSaving(false);
     }
   };
-
-  const Field = ({ label, children }) => (
-    <div style={{ marginBottom: 16 }}>
-      <label style={LABEL}>{label}</label>
-      {children}
-    </div>
-  );
 
   return (
     <div style={{ padding: 28, maxWidth: 900 }}>
