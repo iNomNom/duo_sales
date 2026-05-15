@@ -1,46 +1,32 @@
 const router = require('express').Router();
 const db = require('../models/db');
 const auth = require('../middleware/auth');
-const { exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
 // Download database backup (admin only)
-router.get('/download', auth, async (req, res) => {
+router.get('/download', auth, (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
 
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
-  const filename = `duo_sales_backup_${timestamp}.sql`;
+  const timestamp = new Date().toISOString().split('T')[0];
+  const filename = `duo_sales_backup_${timestamp}.db`;
   const tmpPath = path.join(__dirname, '..', filename);
 
-  // Build pg_dump command from DATABASE_URL or individual env vars
-  const databaseUrl = process.env.DATABASE_URL;
-  let cmd;
+  try {
+    // Use SQLite's VACUUM INTO to create a clean, consistent snapshot
+    // This packs all data (including WAL) into a single .db file
+    db.exec(`VACUUM INTO '${tmpPath}'`);
 
-  if (databaseUrl) {
-    cmd = `pg_dump "${databaseUrl}" --no-owner --no-acl -f "${tmpPath}"`;
-  } else {
-    const pgHost = process.env.PGHOST || 'localhost';
-    const pgPort = process.env.PGPORT || '5432';
-    const pgUser = process.env.PGUSER || 'postgres';
-    const pgDb = process.env.PGDATABASE || 'duo_sales';
-    const pgPassword = process.env.PGPASSWORD || '';
-    cmd = `PGPASSWORD="${pgPassword}" pg_dump -h ${pgHost} -p ${pgPort} -U ${pgUser} -d ${pgDb} --no-owner --no-acl -f "${tmpPath}"`;
-  }
-
-  exec(cmd, (err, stdout, stderr) => {
-    if (err) {
-      console.error('pg_dump failed:', err.message);
-      if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
-      return res.status(500).json({ error: 'Backup failed: ' + err.message });
-    }
-
-    res.download(tmpPath, filename, (downloadErr) => {
+    res.download(tmpPath, filename, (err) => {
       // Clean up temp file after download
       if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
-      if (downloadErr) console.error('Download error:', downloadErr.message);
+      if (err) console.error('Download error:', err.message);
     });
-  });
+  } catch (err) {
+    if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+    console.error('Backup failed:', err.message);
+    res.status(500).json({ error: 'Backup failed: ' + err.message });
+  }
 });
 
 // Sync to Google Sheets (admin only)
