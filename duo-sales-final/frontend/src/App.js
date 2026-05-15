@@ -28,7 +28,7 @@ export default function App() {
             <Route path="sales" element={<Sales />} />
             <Route path="new-sale" element={<NewSale />} />
             <Route path="agents" element={<PrivateRoute adminOnly><Agents /></PrivateRoute>} />
-            <Route path="settings" element={<PrivateRoute adminOnly><Settings /></PrivateRoute>} />
+            <Route path="settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -8,7 +8,7 @@ const nav = [
   { to: '/sales', label: 'All Sales', labelAgent: 'My Sales', icon: '☰' },
   { to: '/new-sale', label: 'New Sale', icon: '+' },
   { to: '/agents', label: 'Agents', icon: '◉', adminOnly: true },
-  { to: '/settings', label: 'Settings', icon: '⚙', adminOnly: true },
+  { to: '/settings', label: 'Settings', icon: '⚙' },
 ];
 
 export default function Layout() {

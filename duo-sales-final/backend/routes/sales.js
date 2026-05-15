@@ -2,6 +2,7 @@ const router = require('express').Router();
 const db = require('../models/db');
 const auth = require('../middleware/auth');
 const nodemailer = require('nodemailer');
+const googleSheets = require('../services/googleSheets');
 
 // ── Email helper ─────────────────────────────────────────────────────────────
 function sendBackupEmail(sale) {
@@ -144,6 +145,11 @@ router.post('/', auth, (req, res) => {
   // Email backup
   sendBackupEmail(newSale);
 
+  // Sync to Google Sheets immediately
+  googleSheets.appendRow(newSale).catch(err =>
+    console.error('Google Sheets sync failed on sale create:', err.message)
+  );
+
   res.status(201).json(newSale);
 });
 
@@ -163,6 +169,12 @@ router.patch('/:id/status', auth, (req, res) => {
   notifyAgentStatusChange(sale, status, req.user.name);
 
   const updated = db.prepare('SELECT * FROM sales WHERE id = ?').get(req.params.id);
+
+  // Sync to Google Sheets immediately
+  googleSheets.updateRow(updated).catch(err =>
+    console.error('Google Sheets sync failed on status change:', err.message)
+  );
+
   res.json(updated);
 });
 
@@ -198,7 +210,14 @@ router.put('/:id', auth, (req, res) => {
     notifyAgentStatusChange(sale, status, req.user.name);
   }
 
-  res.json(db.prepare('SELECT * FROM sales WHERE id = ?').get(req.params.id));
+  const updated = db.prepare('SELECT * FROM sales WHERE id = ?').get(req.params.id);
+
+  // Sync to Google Sheets immediately
+  googleSheets.updateRow(updated).catch(err =>
+    console.error('Google Sheets sync failed on sale update:', err.message)
+  );
+
+  res.json(updated);
 });
 
 // ── DELETE sale (admin only) ──────────────────────────────────────────────────
