@@ -59,4 +59,16 @@ router.put('/password', auth, (req, res) => {
   res.json({ message: 'Password updated' });
 });
 
+// Change user password (admin only)
+router.put('/users/:id/password', auth, (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  const { newPassword } = req.body;
+  if (!newPassword || newPassword.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
+  const targetUser = db.prepare('SELECT id FROM users WHERE id = ?').get(req.params.id);
+  if (!targetUser) return res.status(404).json({ error: 'User not found' });
+  const hash = bcrypt.hashSync(newPassword, 10);
+  db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hash, req.params.id);
+  res.json({ message: 'Password updated successfully' });
+});
+
 module.exports = router;

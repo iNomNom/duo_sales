@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { useAuth } from '../context/AuthContext';
 
 const STATUS_COLORS = { Active: '#34d399', Pending: '#fbbf24', Cancelled: '#f87171', Chargeback: '#a78bfa' };
 
@@ -117,14 +118,64 @@ function AgentDetailModal({ agent, onClose }) {
   );
 }
 
+// ── Password Change Modal ─────────────────────────────────────────────────
+function PasswordChangeModal({ user, onClose }) {
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [msg, setMsg] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (newPassword.length < 6) { setMsg('Password must be at least 6 characters'); return; }
+    if (newPassword !== confirmPassword) { setMsg('Passwords do not match'); return; }
+    try {
+      await axios.put(`/api/auth/users/${user.id}/password`, { newPassword });
+      setMsg('Password updated successfully!');
+      setTimeout(() => onClose(), 1500);
+    } catch (err) {
+      setMsg(err.response?.data?.error || 'Error updating password');
+    }
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} />
+      <div style={{
+        position: 'relative', width: '90%', maxWidth: 400,
+        background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14,
+        padding: 24, boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+      }}>
+        <h3 style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', margin: '0 0 16px 0' }}>Change Password for {user.name}</h3>
+        {msg && <div style={{ background: msg.includes('successfully') ? 'rgba(52,211,153,0.1)' : 'rgba(248,113,113,0.1)', border: `1px solid ${msg.includes('successfully') ? 'rgba(52,211,153,0.3)' : 'rgba(248,113,113,0.3)'}`, borderRadius: 8, padding: '10px 14px', color: msg.includes('successfully') ? 'var(--green)' : 'var(--red)', fontSize: 13, marginBottom: 16 }}>{msg}</div>}
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginBottom: 5 }}>New Password</label>
+            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required minLength={6} style={{ width: '100%', background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 8, padding: '8px 12px', color: 'var(--text)', fontSize: 13, outline: 'none' }} />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginBottom: 5 }}>Confirm New Password</label>
+            <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required minLength={6} style={{ width: '100%', background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 8, padding: '8px 12px', color: 'var(--text)', fontSize: 13, outline: 'none' }} />
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" onClick={onClose} style={{ flex: 1, padding: '8px 16px', background: 'transparent', border: '1px solid var(--border2)', borderRadius: 8, color: 'var(--muted)', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
+            <button type="submit" style={{ flex: 1, padding: '8px 16px', background: 'linear-gradient(135deg,#4f8ef7,#6c63ff)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Update Password</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Agents Page ─────────────────────────────────────────────────────
 export default function Agents() {
+  const { user } = useAuth();
   const [agents, setAgents] = useState([]);
   const [users, setUsers] = useState([]);
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'agent' });
   const [msg, setMsg] = useState('');
   const [selectedAgent, setSelectedAgent] = useState(null);
+  const [passwordChangeUser, setPasswordChangeUser] = useState(null);
 
   const load = async () => {
     try {
@@ -256,7 +307,12 @@ export default function Agents() {
                 </td>
                 <td style={{ padding: '10px 12px', color: 'var(--muted)', fontSize: 12 }}>{u.created_at?.split('T')[0]}</td>
                 <td style={{ padding: '10px 12px' }}>
-                  <button onClick={() => deleteUser(u.id)} style={{ padding: '4px 10px', background: 'transparent', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 6, color: 'var(--red)', fontSize: 11, cursor: 'pointer' }}>Remove</button>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {user?.role === 'admin' && (
+                      <button onClick={() => setPasswordChangeUser(u)} style={{ padding: '4px 10px', background: 'transparent', border: '1px solid rgba(79,142,247,0.3)', borderRadius: 6, color: '#4f8ef7', fontSize: 11, cursor: 'pointer' }}>Change Password</button>
+                    )}
+                    <button onClick={() => deleteUser(u.id)} style={{ padding: '4px 10px', background: 'transparent', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 6, color: 'var(--red)', fontSize: 11, cursor: 'pointer' }}>Remove</button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -267,6 +323,11 @@ export default function Agents() {
       {/* Agent Detail Modal */}
       {selectedAgent && (
         <AgentDetailModal agent={selectedAgent} onClose={() => setSelectedAgent(null)} />
+      )}
+
+      {/* Password Change Modal */}
+      {passwordChangeUser && (
+        <PasswordChangeModal user={passwordChangeUser} onClose={() => setPasswordChangeUser(null)} />
       )}
     </div>
   );
