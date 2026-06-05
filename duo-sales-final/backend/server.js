@@ -18,6 +18,7 @@ app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/backup', require('./routes/backup'));
 app.use('/api/seed', require('./routes/seed'));
+app.use('/api/superadmin', require('./routes/superadmin'));
 
 // Serve frontend in production
 app.use(express.static(path.join(__dirname, '../frontend/build')));

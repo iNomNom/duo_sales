@@ -7,6 +7,7 @@ import Sales from './pages/Sales';
 import NewSale from './pages/NewSale';
 import Agents from './pages/Agents';
 import Settings from './pages/Settings';
+import SuperAdmin from './pages/SuperAdmin';
 import Layout from './components/Layout';
 
 function PrivateRoute({ children, adminOnly }) {
@@ -23,6 +24,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/superadmin" element={<SuperAdmin />} />
           <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
             <Route index element={<Dashboard />} />
             <Route path="sales" element={<Sales />} />

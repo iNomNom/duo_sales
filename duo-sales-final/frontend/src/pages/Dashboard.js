@@ -1,16 +1,48 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, CartesianGrid } from 'recharts';
 
 const STATUS_COLORS = { Active: '#34d399', Pending: '#fbbf24', Cancelled: '#f87171', Chargeback: '#a78bfa' };
 
 // ── Date Presets ──────────────────────────────────────────────────────────
 const DATE_PRESETS = [
-  { label: 'Today', getRange: () => { const d = new Date().toISOString().split('T')[0]; return { from: d, to: d }; } },
-  { label: 'This Week', getRange: () => { const now = new Date(); const day = now.getDay(); const diff = now.getDate() - day + (day === 0 ? -6 : 1); const mon = new Date(now.setDate(diff)); const sun = new Date(mon); sun.setDate(mon.getDate() + 6); return { from: mon.toISOString().split('T')[0], to: sun.toISOString().split('T')[0] }; } },
-  { label: 'This Month', getRange: () => { const now = new Date(); return { from: new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0], to: new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0] }; } },
-  { label: 'This Quarter', getRange: () => { const now = new Date(); const q = Math.floor(now.getMonth() / 3); return { from: new Date(now.getFullYear(), q * 3, 1).toISOString().split('T')[0], to: new Date(now.getFullYear(), q * 3 + 3, 0).toISOString().split('T')[0] }; } },
-  { label: 'This Year', getRange: () => { const y = new Date().getFullYear(); return { from: `${y}-01-01`, to: `${y}-12-31` }; } },
+  {
+    label: 'Today',
+    getRange: () => { const d = new Date().toISOString().split('T')[0]; return { from: d, to: d }; }
+  },
+  {
+    label: 'This Week',
+    getRange: () => {
+      const now = new Date(); const day = now.getDay();
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+      const mon = new Date(now.setDate(diff)); const sun = new Date(mon);
+      sun.setDate(mon.getDate() + 6);
+      return { from: mon.toISOString().split('T')[0], to: sun.toISOString().split('T')[0] };
+    }
+  },
+  {
+    label: 'Sales Cycle',
+    getRange: () => {
+      // This will be overridden by the actual sales period from the API
+      return { from: '', to: '' };
+    }
+  },
+  {
+    label: 'This Quarter',
+    getRange: () => {
+      const now = new Date(); const q = Math.floor(now.getMonth() / 3);
+      return { from: new Date(now.getFullYear(), q * 3, 1).toISOString().split('T')[0], to: new Date(now.getFullYear(), q * 3 + 3, 0).toISOString().split('T')[0] };
+    }
+  },
+  {
+    label: 'This Year',
+    getRange: () => { const y = new Date().getFullYear(); return { from: `${y}-01-01`, to: `${y}-12-31` }; }
+  },
+  {
+    label: 'All Time',
+    getRange: () => ({ from: '', to: '' })
+  },
 ];
 
 // ── KPI Card (clickable) ─────────────────────────────────────────────────
@@ -72,26 +104,26 @@ function DrillDownModal({ title, sales, agents, companies, type, onClose, onNavi
   const paginatedSales = filteredSales.slice((page - 1) * perPage, page * perPage);
   const totalPages = Math.ceil(filteredSales.length / perPage);
 
-  const totalRevenue = filteredSales.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+  // Net revenue: exclude Cancelled/Chargeback
+  const totalRevenue = filteredSales.reduce((sum, s) => {
+    if (s.status === 'Cancelled' || s.status === 'Chargeback') return sum;
+    return sum + (Number(s.amount) || 0);
+  }, 0);
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      {/* Backdrop */}
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} />
-
-      {/* Modal */}
       <div style={{
         position: 'relative', width: '90%', maxWidth: 1100, maxHeight: '85vh',
         background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14,
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
         boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
       }}>
-        {/* Header */}
         <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', margin: 0 }}>{title}</h2>
             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-              {type === 'sales' && `${filteredSales.length} records · Total: $${Number(totalRevenue).toLocaleString()}`}
+              {type === 'sales' && `${filteredSales.length} records · Net Revenue: $${Number(totalRevenue).toLocaleString()}`}
               {type === 'agents' && `${agents.length} agents`}
               {type === 'companies' && `${companies.length} companies`}
             </div>
@@ -105,9 +137,7 @@ function DrillDownModal({ title, sales, agents, companies, type, onClose, onNavi
           </div>
         </div>
 
-        {/* Body */}
         <div style={{ flex: 1, overflow: 'auto', padding: '0 24px 20px' }}>
-          {/* SALES TYPE */}
           {type === 'sales' && (
             <>
               {filteredSales.length === 0 ? (
@@ -129,7 +159,9 @@ function DrillDownModal({ title, sales, agents, companies, type, onClose, onNavi
                         <td style={{ padding: '10px 10px', color: 'var(--text)', fontWeight: 500 }}>{s.carrier_name}</td>
                         <td style={{ padding: '10px 10px', color: 'var(--muted)' }}>{s.company_name}</td>
                         <td style={{ padding: '10px 10px', color: 'var(--muted)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.lane_details}</td>
-                        <td style={{ padding: '10px 10px', color: 'var(--green)', fontWeight: 600 }}>${Number(s.amount || 0).toLocaleString()}</td>
+                        <td style={{ padding: '10px 10px', color: s.status === 'Cancelled' || s.status === 'Chargeback' ? 'var(--red)' : 'var(--green)', fontWeight: 600 }}>
+                          ${Number(s.amount || 0).toLocaleString()}
+                        </td>
                         <td style={{ padding: '10px 10px' }}>
                           <span style={{ fontSize: 11, fontWeight: 500, padding: '3px 10px', borderRadius: 20, background: (STATUS_COLORS[s.status] || '#888') + '22', color: STATUS_COLORS[s.status] || 'var(--muted)' }}>{s.status}</span>
                         </td>
@@ -139,7 +171,6 @@ function DrillDownModal({ title, sales, agents, companies, type, onClose, onNavi
                   </tbody>
                 </table>
               )}
-              {/* Pagination */}
               {totalPages > 1 && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '16px 0' }}>
                   <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ padding: '5px 12px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--muted)', cursor: 'pointer', fontSize: 12 }}>← Prev</button>
@@ -150,7 +181,6 @@ function DrillDownModal({ title, sales, agents, companies, type, onClose, onNavi
             </>
           )}
 
-          {/* AGENTS TYPE */}
           {type === 'agents' && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12, marginTop: 16 }}>
               {agents.map(a => (
@@ -179,7 +209,6 @@ function DrillDownModal({ title, sales, agents, companies, type, onClose, onNavi
             </div>
           )}
 
-          {/* COMPANIES TYPE */}
           {type === 'companies' && (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 16 }}>
               <thead>
@@ -211,11 +240,12 @@ function DrillDownModal({ title, sales, agents, companies, type, onClose, onNavi
 
 // ── Main Dashboard ───────────────────────────────────────────────────────
 export default function Dashboard() {
+  const { user } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState({ from: '', to: '' });
-  const [activePreset, setActivePreset] = useState(null);
-  const [drillDown, setDrillDown] = useState(null); // { title, type, sales?, agents?, companies? }
+  const [activePreset, setActivePreset] = useState('Sales Cycle');
+  const [drillDown, setDrillDown] = useState(null);
   const [drillDownSales, setDrillDownSales] = useState([]);
   const [drillDownLoading, setDrillDownLoading] = useState(false);
 
@@ -235,11 +265,18 @@ export default function Dashboard() {
 
   const applyPreset = (preset) => {
     setActivePreset(preset.label);
-    setRange(preset.getRange());
+    if (preset.label === 'Sales Cycle') {
+      // Don't send from/to — let the backend calculate per-agent sales periods
+      setRange({ from: '', to: '' });
+    } else if (preset.label === 'All Time') {
+      setRange({ from: '', to: '' });
+    } else {
+      setRange(preset.getRange());
+    }
   };
 
   const clearDates = () => {
-    setActivePreset(null);
+    setActivePreset('Sales Cycle');
     setRange({ from: '', to: '' });
   };
 
@@ -256,20 +293,28 @@ export default function Dashboard() {
         setDrillDownSales(res.data.sales);
       } catch { setDrillDownSales([]); }
       setDrillDownLoading(false);
-    } else if (type === 'agents') {
-      // agents and companies are already in data
-    } else if (type === 'companies') {
-      // companies already in data
     }
   };
 
   if (loading) return <div style={{ padding: 40, color: 'var(--muted)', textAlign: 'center' }}>Loading dashboard...</div>;
   if (!data) return <div style={{ padding: 40, color: 'var(--red)' }}>Failed to load data.</div>;
 
-  const { totals, monthly, agents, companies, statusBreakdown, recent, agentCount, companyCount } = data;
+  const { totals, monthly, agents, companies, statusBreakdown, recent, agentCount, companyCount, salesPeriod } = data;
   const fmt = v => '$' + Number(v || 0).toLocaleString();
 
   const pieData = statusBreakdown.map(s => ({ name: s.status, value: s.count }));
+
+  // Format billing period display
+  const formatDate = (d) => {
+    if (!d) return '';
+    const date = new Date(d + 'T00:00:00');
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+  const periodLabel = salesPeriod?.isDefault
+    ? `Sales Period: ${formatDate(salesPeriod.from)} — ${formatDate(salesPeriod.to)}`
+    : range.from && range.to
+      ? `Period: ${formatDate(range.from)} — ${formatDate(range.to)}`
+      : 'All Time';
 
   return (
     <div style={{ padding: 28, maxWidth: 1200 }}>
@@ -277,7 +322,9 @@ export default function Dashboard() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 600, color: 'var(--text)', margin: 0 }}>Sales Dashboard</h1>
-          <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>Duo Enterprizes LLC — Freight Sales Overview</p>
+          <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>
+            Duo Enterprizes LLC — {periodLabel}
+          </p>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Date Presets */}
@@ -306,12 +353,31 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Sales Cycle Indicator */}
+      {salesPeriod?.isDefault && salesPeriod?.agentPeriods && (
+        <div style={{
+          background: 'rgba(79,142,247,0.08)', border: '1px solid rgba(79,142,247,0.2)',
+          borderRadius: 10, padding: '10px 16px', marginBottom: 16,
+          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap'
+        }}>
+          <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500 }}>Sales Cycles Active:</span>
+          {salesPeriod.agentPeriods.map(ap => (
+            <span key={ap.agent_name} style={{
+              fontSize: 11, color: 'var(--muted)',
+              background: 'var(--bg3)', borderRadius: 6, padding: '4px 8px',
+            }}>
+              {ap.agent_name}: {ap.cycle_start}-{ap.cycle_start === 1 ? 'end' : ap.cycle_start - 1} ({formatDate(ap.periodStart)} — {formatDate(ap.periodEnd)})
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* KPI Cards — Row 1: Core metrics */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 14 }}>
-        <KpiCard label="Total Sales" value={totals.total_sales} sub={fmt(totals.total_revenue) + ' revenue'} color="var(--text)" icon="📊"
+        <KpiCard label="Total Sales" value={totals.total_sales} sub={fmt(totals.total_revenue) + ' net revenue'} color="var(--text)" icon="📊"
           onClick={() => openDrillDown('All Sales', 'sales')} />
-        <KpiCard label="Total Revenue" value={fmt(totals.total_revenue)} sub={`${totals.total_sales} total sales`} color="var(--accent)" icon="💰"
-          onClick={() => openDrillDown('All Revenue Details', 'sales')} />
+        <KpiCard label="Net Revenue" value={fmt(totals.total_revenue)} sub={`${totals.total_sales} total sales · Excl. Cancelled/Chargeback`} color="var(--accent)" icon="💰"
+          onClick={() => openDrillDown('Revenue Details', 'sales')} />
         <KpiCard label="Total Agents" value={agentCount || 0} sub="Registered agents" color="var(--accent2)" icon="👥"
           onClick={() => setDrillDown({ title: 'All Agents', type: 'agents' })} />
       </div>
@@ -345,14 +411,14 @@ export default function Dashboard() {
       {/* Charts row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 16, marginBottom: 20 }}>
         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 20 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Monthly Revenue</div>
-          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}>Last 6 months</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Monthly Revenue (Net)</div>
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}>Excluding Cancelled & Chargebacks</div>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={monthly}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
               <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#7a7f96' }} />
               <YAxis tick={{ fontSize: 11, fill: '#7a7f96' }} tickFormatter={v => '$' + (v/1000).toFixed(0) + 'k'} />
-              <Tooltip formatter={v => ['$' + Number(v).toLocaleString(), 'Revenue']} contentStyle={{ background: '#1a1d28', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 12 }} />
+              <Tooltip formatter={v => ['$' + Number(v).toLocaleString(), 'Net Revenue']} contentStyle={{ background: '#1a1d28', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 12 }} />
               <Bar dataKey="revenue" fill="#4f8ef7" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
@@ -434,7 +500,7 @@ export default function Dashboard() {
           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Recent Sales</div>
           <button onClick={() => openDrillDown('All Sales', 'sales')} style={{ padding: '4px 10px', background: 'transparent', border: '1px solid var(--border2)', borderRadius: 6, color: 'var(--muted)', fontSize: 11, cursor: 'pointer' }}>View All →</button>
         </div>
-        {recent.length === 0 ? <p style={{ color: 'var(--muted)', fontSize: 13 }}>No sales yet. Add your first sale!</p> : (
+        {recent.length === 0 ? <p style={{ color: 'var(--muted)', fontSize: 13 }}>No sales in this period. Add your first sale!</p> : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)' }}>
@@ -450,7 +516,9 @@ export default function Dashboard() {
                   <td style={{ padding: '10px 10px', color: 'var(--text)' }}>{s.agent_name}</td>
                   <td style={{ padding: '10px 10px', color: 'var(--text)' }}>{s.carrier_name}</td>
                   <td style={{ padding: '10px 10px', color: 'var(--text)' }}>{s.company_name}</td>
-                  <td style={{ padding: '10px 10px', color: 'var(--green)', fontWeight: 600 }}>${Number(s.amount || 0).toLocaleString()}</td>
+                  <td style={{ padding: '10px 10px', color: s.status === 'Cancelled' || s.status === 'Chargeback' ? 'var(--red)' : 'var(--green)', fontWeight: 600 }}>
+                    ${Number(s.amount || 0).toLocaleString()}
+                  </td>
                   <td style={{ padding: '10px 10px' }}>
                     <span style={{ fontSize: 11, fontWeight: 500, padding: '3px 10px', borderRadius: 20, background: s.status === 'Active' ? '#34d39922' : s.status === 'Pending' ? '#fbbf2422' : s.status === 'Cancelled' ? '#f8717122' : '#a78bfa22', color: STATUS_COLORS[s.status] || 'var(--muted)' }}>
                       {s.status}
