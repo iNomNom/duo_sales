@@ -1,6 +1,6 @@
 // backend/routes/seed.js
 const router = require('express').Router();
-const db = require('../models/db');
+const { db } = require('../models/db');
 const bcrypt = require('bcryptjs');
 
 // ── SEED ENDPOINT — wipe & re-populate with test data ─────────────────────────

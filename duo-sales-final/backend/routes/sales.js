@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const db = require('../models/db');
+const { db } = require('../models/db');
 const auth = require('../middleware/auth');
 const nodemailer = require('nodemailer');
 const googleSheets = require('../services/googleSheets');
