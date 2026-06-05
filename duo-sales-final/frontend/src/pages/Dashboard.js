@@ -366,7 +366,7 @@ export default function Dashboard() {
               fontSize: 11, color: 'var(--muted)',
               background: 'var(--bg3)', borderRadius: 6, padding: '4px 8px',
             }}>
-              {ap.agent_name}: {ap.cycle_start}-{ap.cycle_start === 1 ? 'end' : ap.cycle_start - 1} ({formatDate(ap.periodStart)} — {formatDate(ap.periodEnd)})
+              {ap.agent_name}: {formatDate(ap.periodStart)} — {formatDate(ap.periodEnd)}
             </span>
           ))}
         </div>

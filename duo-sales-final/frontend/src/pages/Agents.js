@@ -35,11 +35,6 @@ function SalesCycleModal({ agent, onClose, onSave }) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const getPeriodLabel = (day) => {
-    const endDay = day === 1 ? 'end of month' : `${day - 1}`;
-    return `${day}th to ${endDay} of each month`;
-  };
-
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }} />
@@ -62,7 +57,7 @@ function SalesCycleModal({ agent, onClose, onSave }) {
               <input type="number" min="1" max="28" value={cycleStart} onChange={e => setCycleStart(e.target.value)}
                 style={{ width: 80, background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 8, padding: '8px 12px', color: 'var(--text)', fontSize: 14, outline: 'none' }} />
               <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                Revenue cycle: {getPeriodLabel(parseInt(cycleStart) || 7)}
+                Day of month to start (1 = calendar month)
               </span>
             </div>
           </div>
@@ -149,7 +144,7 @@ function AgentDetailModal({ agent, onClose }) {
               <div>
                 <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--text)', margin: 0 }}>{agent.name}</h2>
                 <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
-                  {agent.email} · Cycle: {agent.sales_cycle_start || 7}-{agent.sales_cycle_start === 1 ? 'end' : (agent.sales_cycle_start - 1)} · {periodLabel}
+                  {agent.email} · {periodLabel}
                 </div>
               </div>
             </div>
@@ -328,7 +323,7 @@ export default function Agents() {
   const [agents, setAgents] = useState([]);
   const [users, setUsers] = useState([]);
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'agent' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'agent', sales_cycle_start: 1 });
   const [msg, setMsg] = useState('');
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [passwordChangeUser, setPasswordChangeUser] = useState(null);
@@ -364,7 +359,7 @@ export default function Agents() {
       await axios.post('/api/auth/register', form);
       setMsg('User created successfully!');
       setShowAdd(false);
-      setForm({ name: '', email: '', password: '', role: 'agent' });
+      setForm({ name: '', email: '', password: '', role: 'agent', sales_cycle_start: 1 });
       load();
     } catch (err) {
       setMsg(err.response?.data?.error || 'Error');
@@ -442,7 +437,7 @@ export default function Agents() {
         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 24, marginBottom: 20 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 16 }}>Add New User</div>
           <form onSubmit={addUser}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: 12, alignItems: 'end' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto auto auto', gap: 12, alignItems: 'end' }}>
               {[['Full Name', 'name', 'text'], ['Email', 'email', 'email'], ['Password', 'password', 'password']].map(([l, k, t]) => (
                 <div key={k}>
                   <label style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginBottom: 5 }}>{l}</label>
@@ -458,6 +453,11 @@ export default function Agents() {
                   <option value="manager">Manager</option>
                   <option value="admin">Admin</option>
                 </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginBottom: 5 }}>Sales Cycle</label>
+                <input type="number" min="1" max="28" value={form.sales_cycle_start || 1} onChange={e => setForm(f => ({ ...f, sales_cycle_start: parseInt(e.target.value) || 1 }))}
+                  style={{ width: '100%', background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 8, padding: '8px 12px', color: 'var(--text)', fontSize: 13, outline: 'none' }} />
               </div>
               <button type="submit" style={{ padding: '8px 20px', background: 'linear-gradient(135deg,#4f8ef7,#6c63ff)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>Create</button>
             </div>
@@ -485,7 +485,7 @@ export default function Agents() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
                 <div style={{ fontSize: 11, color: 'var(--muted)' }}>
-                  {a.email} · Cycle: {a.sales_cycle_start || 7}-{a.sales_cycle_start === 1 ? 'end' : ((a.sales_cycle_start || 7) - 1)}
+                  {a.email}
                 </div>
               </div>
             </div>
@@ -499,10 +499,10 @@ export default function Agents() {
                 <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--green)', marginTop: 2 }}>${Number(a.total_revenue || 0).toLocaleString()}</div>
               </div>
             </div>
-            {/* Sales cycle info */}
+            {/* Sales period info */}
             {a.sales_period && (
               <div style={{ marginTop: 10, fontSize: 10, color: 'var(--muted)', background: 'var(--bg3)', borderRadius: 6, padding: '6px 10px' }}>
-                Period: {formatDate(a.sales_period.periodStart)} — {formatDate(a.sales_period.periodEnd)}
+                {formatDate(a.sales_period.periodStart)} — {formatDate(a.sales_period.periodEnd)}
               </div>
             )}
             {/* Loss indicators */}
@@ -545,14 +545,10 @@ export default function Agents() {
                   <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 20, fontWeight: 500, background: (BADGE[u.role] || '#888') + '22', color: BADGE[u.role] || 'var(--muted)', textTransform: 'capitalize' }}>{u.role}</span>
                 </td>
                 <td style={{ padding: '10px 12px' }}>
-                  {u.role === 'agent' ? (
-                    <span style={{ fontSize: 11, color: 'var(--accent)', cursor: 'pointer', background: 'rgba(79,142,247,0.1)', padding: '3px 8px', borderRadius: 4 }}
-                      onClick={(e) => { e.stopPropagation(); setSalesCycleAgent(u); }}>
-                      {u.sales_cycle_start || 7}-{(u.sales_cycle_start || 7) === 1 ? 'end' : (u.sales_cycle_start || 7) - 1} ✎
-                    </span>
-                  ) : (
-                    <span style={{ fontSize: 11, color: 'var(--muted)' }}>—</span>
-                  )}
+                  <span style={{ fontSize: 11, color: 'var(--accent)', cursor: 'pointer', background: 'rgba(79,142,247,0.1)', padding: '3px 8px', borderRadius: 4 }}
+                    onClick={(e) => { e.stopPropagation(); setSalesCycleAgent(u); }}>
+                    {u.sales_cycle_start || 7}-{(u.sales_cycle_start || 7) === 1 ? 'end' : (u.sales_cycle_start || 7) - 1} ✎
+                  </span>
                 </td>
                 <td style={{ padding: '10px 12px', color: 'var(--muted)', fontSize: 12 }}>{u.created_at?.split('T')[0]}</td>
                 <td style={{ padding: '10px 12px' }}>
