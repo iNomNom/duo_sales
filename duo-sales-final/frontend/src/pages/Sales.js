@@ -255,16 +255,39 @@ export default function Sales() {
       groupedSales[cycleKey] = {
         periodStart: s.cycle_period_start,
         periodEnd: s.cycle_period_end,
+        cycleFormat: s.cycle_format || '',
+        cycleStartDay: s.cycle_start_day,
+        agentNames: new Set(),
         sales: []
       };
     }
     groupedSales[cycleKey].sales.push(s);
+    if (s.agent_name) groupedSales[cycleKey].agentNames.add(s.agent_name);
   });
 
   // Sort groups by period start date descending
   const sortedGroups = Object.values(groupedSales).sort((a, b) => {
     return (b.periodStart || '').localeCompare(a.periodStart || '');
   });
+
+  // Build cycle label with agent names and format
+  const getCycleLabel = (group) => {
+    const agentList = [...group.agentNames];
+    const format = group.cycleFormat || '?';
+    if (agentList.length === 0) return `Cycle (${format})`;
+    // Group agents by their cycle format
+    const formatGroups = {};
+    group.sales.forEach(s => {
+      const fmt = s.cycle_format || format;
+      if (!formatGroups[fmt]) formatGroups[fmt] = new Set();
+      formatGroups[fmt].add(s.agent_name);
+    });
+    const parts = Object.entries(formatGroups).map(([fmt, names]) => {
+      const nameList = [...names].join(', ');
+      return fmt === '1-End' ? `${nameList} (1-End)` : `${nameList} (${fmt})`;
+    });
+    return parts.join(' · ');
+  };
 
   const formatDate = (d) => {
     if (!d) return '';
@@ -329,10 +352,10 @@ export default function Sales() {
                   position: 'sticky', top: 0, zIndex: 2,
                 }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>
-                    📅 Cycle: {formatDate(group.periodStart)} — {formatDate(group.periodEnd)}
+                    📅 {formatDate(group.periodStart)} — {formatDate(group.periodEnd)}
                   </span>
                   <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                    {group.sales.length} sales · Net: ${group.sales.reduce((sum, s) => {
+                    {getCycleLabel(group)} · {group.sales.length} sales · Net: ${group.sales.reduce((sum, s) => {
                       if (s.status === 'Cancelled' || s.status === 'Chargeback') return sum;
                       return sum + (Number(s.amount) || 0);
                     }, 0).toLocaleString()}

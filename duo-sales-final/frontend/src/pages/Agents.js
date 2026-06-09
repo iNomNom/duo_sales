@@ -243,11 +243,17 @@ function AgentDetailModal({ agent, onClose }) {
                     ? `${s.cycle_period_start}_${s.cycle_period_end}`
                     : 'unknown';
                   if (!grouped[key]) {
-                    grouped[key] = { periodStart: s.cycle_period_start, periodEnd: s.cycle_period_end, sales: [] };
+                    grouped[key] = { periodStart: s.cycle_period_start, periodEnd: s.cycle_period_end, cycleFormat: s.cycle_format || '', sales: [] };
                   }
                   grouped[key].sales.push(s);
                 });
                 const sortedGroups = Object.values(grouped).sort((a, b) => (b.periodStart || '').localeCompare(a.periodStart || ''));
+
+                // Build a nice cycle label showing the agent name and format
+                const cycleFormat = data.salesCycle?.cycle_format || '?';
+                const cycleLabel = cycleFormat === '1-End'
+                  ? `${agent.name} (1-End)`
+                  : `${agent.name} (${cycleFormat})`;
 
                 return sortedGroups.map(group => (
                   <div key={`${group.periodStart}_${group.periodEnd}`} style={{ marginBottom: 16 }}>
@@ -257,10 +263,13 @@ function AgentDetailModal({ agent, onClose }) {
                       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                     }}>
                       <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>
-                        Cycle: {formatDate(group.periodStart)} — {formatDate(group.periodEnd)}
+                        📅 {formatDate(group.periodStart)} — {formatDate(group.periodEnd)}
                       </span>
                       <span style={{ fontSize: 10, color: 'var(--muted)' }}>
-                        {group.sales.length} sales
+                        {cycleLabel} · {group.sales.length} sales · Net: ${group.sales.reduce((sum, s) => {
+                          if (s.status === 'Cancelled' || s.status === 'Chargeback') return sum;
+                          return sum + (Number(s.amount) || 0);
+                        }, 0).toLocaleString()}
                       </span>
                     </div>
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -532,7 +541,7 @@ export default function Agents() {
             {a.sales_period && (
               <div style={{ marginTop: 10, fontSize: 10, color: 'var(--muted)', background: a.is_current_cycle_active ? 'rgba(52,211,153,0.08)' : 'var(--bg3)', borderRadius: 6, padding: '6px 10px', border: a.is_current_cycle_active ? '1px solid rgba(52,211,153,0.15)' : 'none' }}>
                 <span style={{ color: a.is_current_cycle_active ? '#34d399' : 'var(--muted)' }}>
-                  {a.is_current_cycle_active ? '● Active Cycle' : '○ Previous Cycle'}
+                  {a.is_current_cycle_active ? '● Active' : '○ Prev.'} ({a.cycle_label?.includes('Previous') ? 'completed' : 'current'} {a.cycle_format || `${a.sales_cycle_start}-${a.sales_cycle_start === 1 ? 'End' : a.sales_cycle_start - 1}`})
                 </span>: {formatDate(a.sales_period.periodStart)} — {formatDate(a.sales_period.periodEnd)}
               </div>
             )}

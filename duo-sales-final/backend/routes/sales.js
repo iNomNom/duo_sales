@@ -133,7 +133,14 @@ router.get('/', auth, (req, res) => {
   const salesWithCycle = rows.map(s => {
     const cycleStart = cycleMap[s.agent_name] || 8;
     const cyclePeriod = getCyclePeriodForDate(cycleStart, s.date);
-    return { ...s, cycle_period_start: cyclePeriod.periodStart, cycle_period_end: cyclePeriod.periodEnd };
+    const cycleFormat = cycleStart === 1 ? '1-End' : `${cycleStart}-${cycleStart - 1}`;
+    return {
+      ...s,
+      cycle_period_start: cyclePeriod.periodStart,
+      cycle_period_end: cyclePeriod.periodEnd,
+      cycle_start_day: cycleStart,
+      cycle_format: cycleFormat
+    };
   });
 
   res.json({ sales: salesWithCycle, total, page, pages: Math.ceil(total / limit) });

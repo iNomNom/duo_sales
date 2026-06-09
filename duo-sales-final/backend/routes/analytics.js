@@ -10,13 +10,11 @@ function getCyclePeriodForDate(cycleStartDay, saleDate) {
   const year = d.getFullYear();
 
   if (day >= cycleStartDay) {
-    // Sale is in the cycle that started this month
     const periodStart = new Date(year, month, cycleStartDay);
     const periodEnd = new Date(year, month + 1, cycleStartDay - 1);
     const fmt = dt => dt.toISOString().split('T')[0];
     return { periodStart: fmt(periodStart), periodEnd: fmt(periodEnd) };
   } else {
-    // Sale is in the cycle that started last month
     const periodStart = new Date(year, month - 1, cycleStartDay);
     const periodEnd = new Date(year, month, cycleStartDay - 1);
     const fmt = dt => dt.toISOString().split('T')[0];
@@ -24,12 +22,17 @@ function getCyclePeriodForDate(cycleStartDay, saleDate) {
   }
 }
 
+// Helper: Get cycle format label (e.g., "1-End", "8-7")
+function getCycleFormatLabel(cycleStartDay) {
+  if (cycleStartDay === 1) return '1-End';
+  return `${cycleStartDay}-${cycleStartDay - 1}`;
+}
+
 // Helper: Calculate per-agent sales period revenue for dashboard using cursor logic
-function computeDashboardWithAgentCycles(userRole, userName, customFrom, customTo) {
+function computeDashboardWithAgentCycles(userRole, userName) {
   const agentCycles = getAgentSalesCycles();
   const now = new Date();
 
-  // For each agent, calculate their display period using cursor logic
   const agentPeriods = agentCycles.map(a => {
     const cycleStart = a.sales_cycle_start || 8;
     const displayPeriod = getDisplayPeriod(cycleStart, now);
@@ -43,7 +46,6 @@ function computeDashboardWithAgentCycles(userRole, userName, customFrom, customT
     };
   });
 
-  // Calculate total revenue using per-agent display periods
   let totalSales = 0;
   let totalRevenue = 0;
   let activeCount = 0;
@@ -55,9 +57,9 @@ function computeDashboardWithAgentCycles(userRole, userName, customFrom, customT
   for (const ap of agentPeriods) {
     if (userRole === 'agent' && ap.name !== userName) continue;
 
-    // Use custom dates if provided, otherwise use display period (cursor logic)
-    const from = customFrom || ap.periodStart;
-    const to = customTo || ap.periodEnd;
+    // Use the display period for revenue counting (cursor logic)
+    const from = ap.periodStart;
+    const to = ap.periodEnd;
 
     const row = db.prepare(`
       SELECT
@@ -92,47 +94,85 @@ function computeDashboardWithAgentCycles(userRole, userName, customFrom, customT
   };
 }
 
+// Helper: Compute totals for ALL TIME (no date filter)
+function computeAllTimeTotals(userRole, userName) {
+  let where = 'WHERE 1=1';
+  const p = [];
+  if (userRole === 'agent') {
+    where += ' AND agent_name = ?';
+    p.push(userName);
+  }
+
+  return db.prepare(`
+    SELECT
+      COUNT(*) as total_sales,
+      COALESCE(SUM(CASE WHEN status NOT IN ('Cancelled','Chargeback') THEN amount ELSE 0 END),0) as total_revenue,
+      SUM(CASE WHEN status='Active' THEN 1 ELSE 0 END) as active,
+      SUM(CASE WHEN status='Pending' THEN 1 ELSE 0 END) as pending,
+      SUM(CASE WHEN status='Cancelled' THEN 1 ELSE 0 END) as cancelled,
+      SUM(CASE WHEN status='Chargeback' THEN 1 ELSE 0 END) as chargebacks,
+      COALESCE(SUM(CASE WHEN status='Chargeback' THEN amount ELSE 0 END),0) as chargeback_amount
+    FROM sales ${where}
+  `).get(...p);
+}
+
+// Helper: Compute totals for a specific date range
+function computeDateRangeTotals(userRole, userName, from, to) {
+  let where = 'WHERE date >= ? AND date <= ?';
+  const p = [from, to];
+  if (userRole === 'agent') {
+    where += ' AND agent_name = ?';
+    p.push(userName);
+  }
+
+  return db.prepare(`
+    SELECT
+      COUNT(*) as total_sales,
+      COALESCE(SUM(CASE WHEN status NOT IN ('Cancelled','Chargeback') THEN amount ELSE 0 END),0) as total_revenue,
+      SUM(CASE WHEN status='Active' THEN 1 ELSE 0 END) as active,
+      SUM(CASE WHEN status='Pending' THEN 1 ELSE 0 END) as pending,
+      SUM(CASE WHEN status='Cancelled' THEN 1 ELSE 0 END) as cancelled,
+      SUM(CASE WHEN status='Chargeback' THEN 1 ELSE 0 END) as chargebacks,
+      COALESCE(SUM(CASE WHEN status='Chargeback' THEN amount ELSE 0 END),0) as chargeback_amount
+    FROM sales ${where}
+  `).get(...p);
+}
+
 router.get('/dashboard', auth, (req, res) => {
-  const { from, to } = req.query;
+  const { from, to, filter } = req.query;
   const hasCustomDates = from && to;
+  const isAllTime = filter === 'all_time';
+  const isSalesCycle = !filter || filter === 'sales_cycle';
 
-  // ── Determine default sales period ────────────────────────────────────
   const userCycleStart = req.user.sales_cycle_start || 8;
-  const defaultPeriod = getSalesPeriod(userCycleStart, new Date());
 
-  const effectiveFrom = from || defaultPeriod.periodStart;
-  const effectiveTo = to || defaultPeriod.periodEnd;
+  // Determine effective date range for non-totals sections
+  let effectiveFrom, effectiveTo;
+  if (isAllTime) {
+    // All Time: no effective date range
+    effectiveFrom = null;
+    effectiveTo = null;
+  } else if (hasCustomDates) {
+    effectiveFrom = from;
+    effectiveTo = to;
+  } else {
+    // Sales Cycle: use user's default period
+    const defaultPeriod = getSalesPeriod(userCycleStart, new Date());
+    effectiveFrom = defaultPeriod.periodStart;
+    effectiveTo = defaultPeriod.periodEnd;
+  }
 
   // ── Totals ──────────────────────────────────────────────────────────────
   let totals;
-
-  if (!hasCustomDates) {
-    // Use per-agent display periods (cursor logic) for totals
+  if (isAllTime) {
+    totals = computeAllTimeTotals(req.user.role, req.user.name);
+  } else if (isSalesCycle && !hasCustomDates) {
     totals = computeDashboardWithAgentCycles(req.user.role, req.user.name);
   } else {
-    // Use custom date range with standard query
-    let where = 'WHERE date >= ? AND date <= ?';
-    const p = [effectiveFrom, effectiveTo];
-
-    if (req.user.role === 'agent') {
-      where += ' AND agent_name = ?';
-      p.push(req.user.name);
-    }
-
-    totals = db.prepare(`
-      SELECT
-        COUNT(*) as total_sales,
-        COALESCE(SUM(CASE WHEN status NOT IN ('Cancelled','Chargeback') THEN amount ELSE 0 END),0) as total_revenue,
-        SUM(CASE WHEN status='Active' THEN 1 ELSE 0 END) as active,
-        SUM(CASE WHEN status='Pending' THEN 1 ELSE 0 END) as pending,
-        SUM(CASE WHEN status='Cancelled' THEN 1 ELSE 0 END) as cancelled,
-        SUM(CASE WHEN status='Chargeback' THEN 1 ELSE 0 END) as chargebacks,
-        COALESCE(SUM(CASE WHEN status='Chargeback' THEN amount ELSE 0 END),0) as chargeback_amount
-      FROM sales ${where}
-    `).get(...p);
+    totals = computeDateRangeTotals(req.user.role, req.user.name, effectiveFrom, effectiveTo);
   }
 
-  // ── Monthly revenue trend (last 6 months, net revenue only) ─────────────
+  // ── Monthly revenue trend (last 6 months, always all data) ─────────────
   let monthlyWhere = 'WHERE date >= date(\'now\',\'-6 months\')';
   const monthlyP = [];
   if (req.user.role === 'agent') {
@@ -148,33 +188,51 @@ router.get('/dashboard', auth, (req, res) => {
     GROUP BY month ORDER BY month
   `).all(...monthlyP);
 
-  // ── Top agents (admin/manager) using cursor logic ──────────────────────
+  // ── Top agents ──────────────────────────────────────────────────────────
   let agents = [];
   if (req.user.role !== 'agent') {
     const agentCycles = getAgentSalesCycles();
     for (const ac of agentCycles) {
       let agentFrom, agentTo;
-      if (hasCustomDates) {
+      if (isAllTime) {
+        agentFrom = null;
+        agentTo = null;
+      } else if (hasCustomDates) {
         agentFrom = effectiveFrom;
         agentTo = effectiveTo;
       } else {
-        // Use cursor-based display period
+        // Sales Cycle: cursor-based display period
         const displayPeriod = getDisplayPeriod(ac.sales_cycle_start || 8, new Date());
         agentFrom = displayPeriod.periodStart;
         agentTo = displayPeriod.periodEnd;
       }
 
-      const row = db.prepare(`
-        SELECT agent_name,
-               COUNT(*) as sales_count,
-               COALESCE(SUM(CASE WHEN status NOT IN ('Cancelled','Chargeback') THEN amount ELSE 0 END),0) as revenue,
-               SUM(CASE WHEN status='Active' THEN 1 ELSE 0 END) as active,
-               SUM(CASE WHEN status='Cancelled' THEN 1 ELSE 0 END) as cancelled,
-               SUM(CASE WHEN status='Chargeback' THEN 1 ELSE 0 END) as chargebacks
-        FROM sales
-        WHERE agent_name = ? AND date >= ? AND date <= ?
-        GROUP BY agent_name
-      `).get(ac.name, agentFrom, agentTo);
+      let row;
+      if (agentFrom && agentTo) {
+        row = db.prepare(`
+          SELECT agent_name,
+                 COUNT(*) as sales_count,
+                 COALESCE(SUM(CASE WHEN status NOT IN ('Cancelled','Chargeback') THEN amount ELSE 0 END),0) as revenue,
+                 SUM(CASE WHEN status='Active' THEN 1 ELSE 0 END) as active,
+                 SUM(CASE WHEN status='Cancelled' THEN 1 ELSE 0 END) as cancelled,
+                 SUM(CASE WHEN status='Chargeback' THEN 1 ELSE 0 END) as chargebacks
+          FROM sales
+          WHERE agent_name = ? AND date >= ? AND date <= ?
+          GROUP BY agent_name
+        `).get(ac.name, agentFrom, agentTo);
+      } else {
+        row = db.prepare(`
+          SELECT agent_name,
+                 COUNT(*) as sales_count,
+                 COALESCE(SUM(CASE WHEN status NOT IN ('Cancelled','Chargeback') THEN amount ELSE 0 END),0) as revenue,
+                 SUM(CASE WHEN status='Active' THEN 1 ELSE 0 END) as active,
+                 SUM(CASE WHEN status='Cancelled' THEN 1 ELSE 0 END) as cancelled,
+                 SUM(CASE WHEN status='Chargeback' THEN 1 ELSE 0 END) as chargebacks
+          FROM sales
+          WHERE agent_name = ?
+          GROUP BY agent_name
+        `).get(ac.name);
+      }
 
       if (row && row.sales_count > 0) {
         agents.push(row);
@@ -188,60 +246,100 @@ router.get('/dashboard', auth, (req, res) => {
     agents.sort((a, b) => b.revenue - a.revenue);
   }
 
-  // ── Top companies (within the effective date range) ─────────────────────
-  let compWhere = 'WHERE date >= ? AND date <= ?';
-  const compP = [effectiveFrom, effectiveTo];
-  if (req.user.role === 'agent') {
-    compWhere += ' AND agent_name = ?';
-    compP.push(req.user.name);
+  // ── Top companies ──────────────────────────────────────────────────────
+  let companies = [];
+  if (isAllTime || !effectiveFrom) {
+    let compWhere = "WHERE company_name IS NOT NULL AND company_name != ''";
+    const compP = [];
+    if (req.user.role === 'agent') { compWhere += ' AND agent_name = ?'; compP.push(req.user.name); }
+    companies = db.prepare(`
+      SELECT company_name,
+             COUNT(*) as sales_count,
+             COALESCE(SUM(CASE WHEN status NOT IN ('Cancelled','Chargeback') THEN amount ELSE 0 END),0) as revenue,
+             SUM(CASE WHEN status='Active' THEN 1 ELSE 0 END) as active,
+             SUM(CASE WHEN status='Cancelled' THEN 1 ELSE 0 END) as cancelled
+      FROM sales ${compWhere}
+      GROUP BY company_name ORDER BY revenue DESC LIMIT 10
+    `).all(...compP);
+  } else {
+    let compWhere = 'WHERE date >= ? AND date <= ?';
+    const compP = [effectiveFrom, effectiveTo];
+    if (req.user.role === 'agent') { compWhere += ' AND agent_name = ?'; compP.push(req.user.name); }
+    companies = db.prepare(`
+      SELECT company_name,
+             COUNT(*) as sales_count,
+             COALESCE(SUM(CASE WHEN status NOT IN ('Cancelled','Chargeback') THEN amount ELSE 0 END),0) as revenue,
+             SUM(CASE WHEN status='Active' THEN 1 ELSE 0 END) as active,
+             SUM(CASE WHEN status='Cancelled' THEN 1 ELSE 0 END) as cancelled
+      FROM sales ${compWhere}
+      GROUP BY company_name ORDER BY revenue DESC LIMIT 10
+    `).all(...compP);
   }
-  const companies = db.prepare(`
-    SELECT company_name,
-           COUNT(*) as sales_count,
-           COALESCE(SUM(CASE WHEN status NOT IN ('Cancelled','Chargeback') THEN amount ELSE 0 END),0) as revenue,
-           SUM(CASE WHEN status='Active' THEN 1 ELSE 0 END) as active,
-           SUM(CASE WHEN status='Cancelled' THEN 1 ELSE 0 END) as cancelled
-    FROM sales ${compWhere}
-    GROUP BY company_name ORDER BY revenue DESC LIMIT 10
-  `).all(...compP);
 
-  // ── Status breakdown for donut chart ────────────────────────────────────
-  let statusWhere = 'WHERE date >= ? AND date <= ?';
-  const statusP = [effectiveFrom, effectiveTo];
-  if (req.user.role === 'agent') {
-    statusWhere += ' AND agent_name = ?';
-    statusP.push(req.user.name);
+  // ── Status breakdown ────────────────────────────────────────────────────
+  let statusBreakdown = [];
+  if (isAllTime || !effectiveFrom) {
+    let statusWhere = 'WHERE 1=1';
+    const statusP = [];
+    if (req.user.role === 'agent') { statusWhere += ' AND agent_name = ?'; statusP.push(req.user.name); }
+    statusBreakdown = db.prepare(`
+      SELECT status, COUNT(*) as count, COALESCE(SUM(amount),0) as revenue
+      FROM sales ${statusWhere}
+      GROUP BY status
+    `).all(...statusP);
+  } else {
+    let statusWhere = 'WHERE date >= ? AND date <= ?';
+    const statusP = [effectiveFrom, effectiveTo];
+    if (req.user.role === 'agent') { statusWhere += ' AND agent_name = ?'; statusP.push(req.user.name); }
+    statusBreakdown = db.prepare(`
+      SELECT status, COUNT(*) as count, COALESCE(SUM(amount),0) as revenue
+      FROM sales ${statusWhere}
+      GROUP BY status
+    `).all(...statusP);
   }
-  const statusBreakdown = db.prepare(`
-    SELECT status, COUNT(*) as count, COALESCE(SUM(amount),0) as revenue
-    FROM sales ${statusWhere}
-    GROUP BY status
-  `).all(...statusP);
 
-  // ── Recent 10 sales (within sales period) ─────────────────────────────
-  let recentWhere = 'WHERE date >= ? AND date <= ?';
-  const recentP = [effectiveFrom, effectiveTo];
-  if (req.user.role === 'agent') {
-    recentWhere += ' AND agent_name = ?';
-    recentP.push(req.user.name);
+  // ── Recent 10 sales ────────────────────────────────────────────────────
+  let recent = [];
+  if (isAllTime || !effectiveFrom) {
+    let recentWhere = 'WHERE 1=1';
+    const recentP = [];
+    if (req.user.role === 'agent') { recentWhere += ' AND agent_name = ?'; recentP.push(req.user.name); }
+    recent = db.prepare(`
+      SELECT id, date, agent_name, carrier_name, company_name, amount, status, created_at
+      FROM sales ${recentWhere}
+      ORDER BY created_at DESC LIMIT 10
+    `).all(...recentP);
+  } else {
+    let recentWhere = 'WHERE date >= ? AND date <= ?';
+    const recentP = [effectiveFrom, effectiveTo];
+    if (req.user.role === 'agent') { recentWhere += ' AND agent_name = ?'; recentP.push(req.user.name); }
+    recent = db.prepare(`
+      SELECT id, date, agent_name, carrier_name, company_name, amount, status, created_at
+      FROM sales ${recentWhere}
+      ORDER BY created_at DESC LIMIT 10
+    `).all(...recentP);
   }
-  const recent = db.prepare(`
-    SELECT id, date, agent_name, carrier_name, company_name, amount, status, created_at
-    FROM sales ${recentWhere}
-    ORDER BY created_at DESC LIMIT 10
-  `).all(...recentP);
 
-  // ── Agent count (admin/manager only) ────────────────────────────────────
+  // ── Agent count ────────────────────────────────────────────────────────
   const agentCount = req.user.role !== 'agent'
     ? db.prepare('SELECT COUNT(*) as count FROM users WHERE role = ?').get('agent').count
     : 0;
 
-  // ── Unique companies count ──────────────────────────────────────────────
-  const companyCount = db.prepare(
-    `SELECT COUNT(DISTINCT company_name) as count FROM sales WHERE company_name IS NOT NULL AND company_name != '' AND date >= ? AND date <= ?${req.user.role === 'agent' ? ' AND agent_name = ?' : ''}`
-  ).get(...(req.user.role === 'agent' ? [effectiveFrom, effectiveTo, req.user.name] : [effectiveFrom, effectiveTo])).count;
+  // ── Unique companies count ─────────────────────────────────────────────
+  let companyCount;
+  if (isAllTime || !effectiveFrom) {
+    let cntWhere = "WHERE company_name IS NOT NULL AND company_name != ''";
+    const cntP = [];
+    if (req.user.role === 'agent') { cntWhere += ' AND agent_name = ?'; cntP.push(req.user.name); }
+    companyCount = db.prepare(`SELECT COUNT(DISTINCT company_name) as count FROM sales ${cntWhere}`).get(...cntP).count;
+  } else {
+    let cntWhere = "WHERE company_name IS NOT NULL AND company_name != '' AND date >= ? AND date <= ?";
+    const cntP = [effectiveFrom, effectiveTo];
+    if (req.user.role === 'agent') { cntWhere += ' AND agent_name = ?'; cntP.push(req.user.name); }
+    companyCount = db.prepare(`SELECT COUNT(DISTINCT company_name) as count FROM sales ${cntWhere}`).get(...cntP).count;
+  }
 
-  // ── Include sales period info in response with cursor logic ─────────────
+  // ── Sales period info with cursor logic ────────────────────────────────
   const agentCycles = getAgentSalesCycles();
   const salesPeriods = agentCycles.map(a => {
     const cycleStart = a.sales_cycle_start || 8;
@@ -250,6 +348,7 @@ router.get('/dashboard', auth, (req, res) => {
     return {
       agent_name: a.name,
       cycle_start: cycleStart,
+      cycle_format: getCycleFormatLabel(cycleStart),
       ...displayPeriod,
       fullPeriodStart: fullPeriod.periodStart,
       fullPeriodEnd: fullPeriod.periodEnd
@@ -266,9 +365,10 @@ router.get('/dashboard', auth, (req, res) => {
     agentCount,
     companyCount,
     salesPeriod: {
-      from: effectiveFrom,
-      to: effectiveTo,
-      isDefault: !hasCustomDates,
+      from: effectiveFrom || null,
+      to: effectiveTo || null,
+      filterMode: isAllTime ? 'all_time' : (isSalesCycle && !hasCustomDates) ? 'sales_cycle' : 'custom',
+      isDefault: isSalesCycle && !hasCustomDates,
       agentPeriods: salesPeriods,
       userCycleStart: userCycleStart
     }
@@ -278,29 +378,28 @@ router.get('/dashboard', auth, (req, res) => {
 // Per-agent detail
 router.get('/agent/:name', auth, (req, res) => {
   const name = decodeURIComponent(req.params.name);
-  // Agents can only see their own details
   if (req.user.role === 'agent' && req.user.name !== name) {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
   const { from, to, filter } = req.query;
 
-  // Determine the agent's sales cycle
   const agentUser = db.prepare("SELECT sales_cycle_start FROM users WHERE name = ? AND role = 'agent'").get(name);
   const cycleStart = agentUser?.sales_cycle_start || 8;
 
-  // Determine date range using cursor logic for monthly filter
+  // Determine date range
   let effectiveFrom, effectiveTo;
-  if (filter === 'all_time' || (!from && !to && filter !== 'monthly')) {
-    if (filter === 'monthly' || (!from && !to)) {
-      const displayPeriod = getDisplayPeriod(cycleStart, new Date());
-      effectiveFrom = displayPeriod.periodStart;
-      effectiveTo = displayPeriod.periodEnd;
-    } else {
-      effectiveFrom = null;
-      effectiveTo = null;
-    }
+  if (filter === 'all_time') {
+    // All Time: no date filter at all
+    effectiveFrom = null;
+    effectiveTo = null;
+  } else if (filter === 'monthly' || (!from && !to)) {
+    // Monthly (default): use cursor-based display period
+    const displayPeriod = getDisplayPeriod(cycleStart, new Date());
+    effectiveFrom = displayPeriod.periodStart;
+    effectiveTo = displayPeriod.periodEnd;
   } else {
+    // Custom date range
     effectiveFrom = from;
     effectiveTo = to;
   }
@@ -313,13 +412,19 @@ router.get('/agent/:name', auth, (req, res) => {
 
   const sales = db.prepare(`SELECT * FROM sales ${where} ORDER BY date DESC`).all(...params);
 
-  // Group sales by cycle period
+  // Add cycle period info to each sale
   const salesWithCycle = sales.map(s => {
     const cyclePeriod = getCyclePeriodForDate(cycleStart, s.date);
-    return { ...s, cycle_period_start: cyclePeriod.periodStart, cycle_period_end: cyclePeriod.periodEnd };
+    return {
+      ...s,
+      cycle_period_start: cyclePeriod.periodStart,
+      cycle_period_end: cyclePeriod.periodEnd,
+      cycle_start_day: cycleStart,
+      cycle_format: getCycleFormatLabel(cycleStart)
+    };
   });
 
-  // Stats: net revenue (exclude Cancelled + Chargeback)
+  // Stats
   let statsWhere = 'WHERE agent_name = ?';
   const statsParams = [name];
   if (effectiveFrom) { statsWhere += ' AND date >= ?'; statsParams.push(effectiveFrom); }
@@ -337,7 +442,7 @@ router.get('/agent/:name', auth, (req, res) => {
     FROM sales ${statsWhere}
   `).get(...statsParams);
 
-  // Monthly breakdown (all time for chart, net revenue)
+  // Monthly breakdown (all time for chart)
   const monthly = db.prepare(`
     SELECT strftime('%Y-%m', date) as month,
            COALESCE(SUM(CASE WHEN status NOT IN ('Cancelled','Chargeback') THEN amount ELSE 0 END),0) as revenue,
@@ -346,7 +451,6 @@ router.get('/agent/:name', auth, (req, res) => {
     GROUP BY month ORDER BY month DESC LIMIT 6
   `).all(name);
 
-  // Include sales period info with cursor logic
   const displayPeriod = getDisplayPeriod(cycleStart, new Date());
   const fullSalesPeriod = getSalesPeriod(cycleStart, new Date());
 
@@ -354,7 +458,13 @@ router.get('/agent/:name', auth, (req, res) => {
     stats,
     sales: salesWithCycle,
     monthly,
-    salesCycle: { cycle_start: cycleStart, ...displayPeriod, fullPeriodStart: fullSalesPeriod.periodStart, fullPeriodEnd: fullSalesPeriod.periodEnd },
+    salesCycle: {
+      cycle_start: cycleStart,
+      cycle_format: getCycleFormatLabel(cycleStart),
+      ...displayPeriod,
+      fullPeriodStart: fullSalesPeriod.periodStart,
+      fullPeriodEnd: fullSalesPeriod.periodEnd
+    },
     periodUsed: { from: effectiveFrom, to: effectiveTo }
   });
 });

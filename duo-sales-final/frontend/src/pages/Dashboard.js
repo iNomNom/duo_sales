@@ -9,10 +9,12 @@ const STATUS_COLORS = { Active: '#34d399', Pending: '#fbbf24', Cancelled: '#f871
 const DATE_PRESETS = [
   {
     label: 'Today',
+    filterMode: 'custom',
     getRange: () => { const d = new Date().toISOString().split('T')[0]; return { from: d, to: d }; }
   },
   {
     label: 'This Week',
+    filterMode: 'custom',
     getRange: () => {
       const now = new Date(); const day = now.getDay();
       const diff = now.getDate() - day + (day === 0 ? -6 : 1);
@@ -23,13 +25,12 @@ const DATE_PRESETS = [
   },
   {
     label: 'Sales Cycle',
-    getRange: () => {
-      // This will be overridden by the actual sales period from the API
-      return { from: '', to: '' };
-    }
+    filterMode: 'sales_cycle',
+    getRange: () => ({ from: '', to: '' })
   },
   {
     label: 'This Quarter',
+    filterMode: 'custom',
     getRange: () => {
       const now = new Date(); const q = Math.floor(now.getMonth() / 3);
       return { from: new Date(now.getFullYear(), q * 3, 1).toISOString().split('T')[0], to: new Date(now.getFullYear(), q * 3 + 3, 0).toISOString().split('T')[0] };
@@ -37,10 +38,12 @@ const DATE_PRESETS = [
   },
   {
     label: 'This Year',
+    filterMode: 'custom',
     getRange: () => { const y = new Date().getFullYear(); return { from: `${y}-01-01`, to: `${y}-12-31` }; }
   },
   {
     label: 'All Time',
+    filterMode: 'all_time',
     getRange: () => ({ from: '', to: '' })
   },
 ];
@@ -87,10 +90,8 @@ function StatusPill({ status, count, bg, col, onClick }) {
 }
 
 // ── Drill-Down Modal ─────────────────────────────────────────────────────
-function DrillDownModal({ title, sales, agents, companies, type, onClose, onNavigate }) {
+function DrillDownModal({ title, sales, agents, companies, type, onClose }) {
   const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const perPage = 15;
 
   const filteredSales = sales.filter(s => {
     if (!search) return true;
@@ -111,21 +112,20 @@ function DrillDownModal({ title, sales, agents, companies, type, onClose, onNavi
       groupedSales[cycleKey] = {
         periodStart: s.cycle_period_start,
         periodEnd: s.cycle_period_end,
+        cycleFormat: s.cycle_format || '',
+        cycleStartDay: s.cycle_start_day,
+        agentNames: new Set(),
         sales: []
       };
     }
     groupedSales[cycleKey].sales.push(s);
+    if (s.agent_name) groupedSales[cycleKey].agentNames.add(s.agent_name);
   });
 
-  // Sort groups by period start date descending
   const sortedGroups = Object.values(groupedSales).sort((a, b) => {
     return (b.periodStart || '').localeCompare(a.periodStart || '');
   });
 
-  const totalPages = Math.ceil(filteredSales.length / perPage);
-  const paginatedSales = filteredSales.slice((page - 1) * perPage, page * perPage);
-
-  // Net revenue: exclude Cancelled/Chargeback
   const totalRevenue = filteredSales.reduce((sum, s) => {
     if (s.status === 'Cancelled' || s.status === 'Chargeback') return sum;
     return sum + (Number(s.amount) || 0);
@@ -135,6 +135,20 @@ function DrillDownModal({ title, sales, agents, companies, type, onClose, onNavi
     if (!d) return '';
     const date = new Date(d + 'T00:00:00');
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  // Build cycle label with agent names
+  const getCycleLabel = (group) => {
+    const agentList = [...group.agentNames];
+    const format = group.cycleFormat || '?';
+    if (agentList.length === 0) return `Cycle (${format})`;
+    // Check if agents have different cycle formats
+    const agentLabels = agentList.map(name => {
+      const sale = group.sales.find(s => s.agent_name === name);
+      const fmt = sale?.cycle_format || format;
+      return fmt === '1-End' ? `${name} (1-End)` : `${name} (${fmt})`;
+    });
+    return agentLabels.join(' · ');
   };
 
   return (
@@ -157,7 +171,7 @@ function DrillDownModal({ title, sales, agents, companies, type, onClose, onNavi
           </div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             {type === 'sales' && (
-              <input placeholder="Search..." value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
+              <input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)}
                 style={{ background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 8, padding: '7px 14px', color: 'var(--text)', fontSize: 12, outline: 'none', width: 240 }} />
             )}
             <button onClick={onClose} style={{ padding: '6px 14px', background: 'transparent', border: '1px solid var(--border2)', borderRadius: 8, color: 'var(--muted)', fontSize: 12, cursor: 'pointer' }}>✕ Close</button>
@@ -173,7 +187,6 @@ function DrillDownModal({ title, sales, agents, companies, type, onClose, onNavi
                 <>
                   {sortedGroups.map(group => (
                     <div key={`${group.periodStart}_${group.periodEnd}`} style={{ marginBottom: 20 }}>
-                      {/* Cycle Period Header */}
                       <div style={{
                         background: 'rgba(79,142,247,0.08)', border: '1px solid rgba(79,142,247,0.2)',
                         borderRadius: 8, padding: '8px 14px', marginBottom: 8,
@@ -181,10 +194,10 @@ function DrillDownModal({ title, sales, agents, companies, type, onClose, onNavi
                         position: 'sticky', top: 0, zIndex: 1,
                       }}>
                         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}>
-                          Cycle: {formatDate(group.periodStart)} — {formatDate(group.periodEnd)}
+                          📅 {formatDate(group.periodStart)} — {formatDate(group.periodEnd)}
                         </span>
                         <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                          {group.sales.length} sales · Net: ${group.sales.reduce((sum, s) => {
+                          {getCycleLabel(group)} · {group.sales.length} sales · Net: ${group.sales.reduce((sum, s) => {
                             if (s.status === 'Cancelled' || s.status === 'Chargeback') return sum;
                             return sum + (Number(s.amount) || 0);
                           }, 0).toLocaleString()}
@@ -220,13 +233,6 @@ function DrillDownModal({ title, sales, agents, companies, type, onClose, onNavi
                     </div>
                   ))}
                 </>
-              )}
-              {totalPages > 1 && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '16px 0' }}>
-                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} style={{ padding: '5px 12px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--muted)', cursor: 'pointer', fontSize: 12 }}>← Prev</button>
-                  <span style={{ color: 'var(--muted)', fontSize: 12 }}>Page {page} of {totalPages}</span>
-                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={{ padding: '5px 12px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--muted)', cursor: 'pointer', fontSize: 12 }}>Next →</button>
-                </div>
               )}
             </>
           )}
@@ -295,6 +301,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState({ from: '', to: '' });
   const [activePreset, setActivePreset] = useState('Sales Cycle');
+  const [filterMode, setFilterMode] = useState('sales_cycle'); // 'sales_cycle' | 'all_time' | 'custom'
   const [drillDown, setDrillDown] = useState(null);
   const [drillDownSales, setDrillDownSales] = useState([]);
   const [drillDownLoading, setDrillDownLoading] = useState(false);
@@ -303,51 +310,90 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const params = {};
-      if (range.from) params.from = range.from;
-      if (range.to) params.to = range.to;
+      if (filterMode === 'all_time') {
+        params.filter = 'all_time';
+      } else if (filterMode === 'sales_cycle') {
+        params.filter = 'sales_cycle';
+      } else {
+        // Custom date range
+        if (range.from) params.from = range.from;
+        if (range.to) params.to = range.to;
+      }
       const res = await axios.get('/api/analytics/dashboard', { params });
       setData(res.data);
     } catch { /* ignore */ }
     setLoading(false);
-  }, [range]);
+  }, [range, filterMode]);
 
   useEffect(() => { load(); }, [load]);
 
   const applyPreset = (preset) => {
     setActivePreset(preset.label);
-    if (preset.label === 'Sales Cycle') {
-      setRange({ from: '', to: '' });
-    } else if (preset.label === 'All Time') {
-      setRange({ from: '', to: '' });
-    } else {
-      setRange(preset.getRange());
-    }
+    setFilterMode(preset.filterMode);
+    setRange(preset.getRange());
   };
 
   const clearDates = () => {
     setActivePreset('Sales Cycle');
+    setFilterMode('sales_cycle');
     setRange({ from: '', to: '' });
   };
 
-  // Fetch filtered sales for drill-down — now properly passes all filter params
+  // Fetch filtered sales for drill-down — properly handles all filter modes
   const openDrillDown = async (title, type, filterParams = {}) => {
     setDrillDown({ title, type, filterParams });
     if (type === 'sales') {
       setDrillDownLoading(true);
       try {
-        const params = { limit: 1000, ...filterParams };
-        // When in Sales Cycle mode, don't override with range — let backend handle per-agent cycles
-        if (activePreset !== 'Sales Cycle') {
+        const params = { limit: 5000, ...filterParams };
+
+        if (filterMode === 'all_time') {
+          // All Time: no date filter, just status/agent if any
+        } else if (filterMode === 'sales_cycle') {
+          // Sales Cycle: pass broad date range covering all agents' display periods
+          // then filter client-side by full cycle period
+          if (data?.salesPeriod?.agentPeriods) {
+            const allStarts = data.salesPeriod.agentPeriods.map(ap => ap.periodStart || ap.fullPeriodStart).filter(Boolean);
+            const allEnds = data.salesPeriod.agentPeriods.map(ap => ap.periodEnd || ap.fullPeriodEnd).filter(Boolean);
+            if (allStarts.length && allEnds.length) {
+              params.from = allStarts.reduce((a, b) => a < b ? a : b);
+              params.to = allEnds.reduce((a, b) => a > b ? a : b);
+            }
+          }
+        } else {
+          // Custom date range: apply the same date range
           if (range.from) params.from = range.from;
           if (range.to) params.to = range.to;
-        } else {
-          // In Sales Cycle mode, use the date range from dashboard data if available
-          if (data?.salesPeriod?.from) params.from = data.salesPeriod.from;
-          if (data?.salesPeriod?.to) params.to = data.salesPeriod.to;
         }
+
         const res = await axios.get('/api/sales', { params });
-        setDrillDownSales(res.data.sales);
-      } catch { setDrillDownSales([]); }
+        let sales = res.data.sales || [];
+
+        // In Sales Cycle mode, filter to only show sales within each agent's FULL cycle period
+        // (display period end = today, but cycle_period on sales uses full period end)
+        if (filterMode === 'sales_cycle' && data?.salesPeriod?.agentPeriods) {
+          const agentFullPeriods = {};
+          data.salesPeriod.agentPeriods.forEach(ap => {
+            // Use fullPeriodStart/fullPeriodEnd which match the cycle_period on sales records
+            agentFullPeriods[ap.agent_name] = {
+              start: ap.fullPeriodStart,
+              end: ap.fullPeriodEnd
+            };
+          });
+
+          sales = sales.filter(s => {
+            const fullPeriod = agentFullPeriods[s.agent_name];
+            if (!fullPeriod) return true;
+            // Match sale's cycle period to agent's full cycle period
+            return s.cycle_period_start === fullPeriod.start && s.cycle_period_end === fullPeriod.end;
+          });
+        }
+
+        setDrillDownSales(sales);
+      } catch (err) {
+        console.error('Drill-down fetch error:', err);
+        setDrillDownSales([]);
+      }
       setDrillDownLoading(false);
     }
   };
@@ -360,30 +406,31 @@ export default function Dashboard() {
 
   const pieData = statusBreakdown.map(s => ({ name: s.status, value: s.count }));
 
-  // Format billing period display
   const formatDate = (d) => {
     if (!d) return '';
     const date = new Date(d + 'T00:00:00');
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  // Build period label with cursor info
+  // Build period label
   let periodLabel;
-  if (salesPeriod?.isDefault) {
+  if (filterMode === 'all_time') {
+    periodLabel = 'All Time';
+  } else if (salesPeriod?.filterMode === 'sales_cycle') {
     const activePeriods = salesPeriod.agentPeriods || [];
     const hasAnyActive = activePeriods.some(ap => ap.isCurrentCycleActive);
     const hasAnyInactive = activePeriods.some(ap => !ap.isCurrentCycleActive);
     if (hasAnyActive && hasAnyInactive) {
       periodLabel = 'Mixed Cycle Periods (see per-agent details below)';
     } else if (hasAnyActive) {
-      periodLabel = `Current Cycle (started): ${formatDate(salesPeriod.from)} — ${formatDate(salesPeriod.to)}`;
+      periodLabel = 'Current Cycle (in progress)';
     } else {
-      periodLabel = `Previous Completed Cycle: ${formatDate(salesPeriod.from)} — ${formatDate(salesPeriod.to)}`;
+      periodLabel = 'Previous Completed Cycle';
     }
   } else if (range.from && range.to) {
-    periodLabel = `Period: ${formatDate(range.from)} — ${formatDate(range.to)}`;
+    periodLabel = `${formatDate(range.from)} — ${formatDate(range.to)}`;
   } else {
-    periodLabel = 'All Time';
+    periodLabel = 'Custom Period';
   }
 
   return (
@@ -397,7 +444,6 @@ export default function Dashboard() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-          {/* Date Presets */}
           {DATE_PRESETS.map(preset => (
             <button
               key={preset.label}
@@ -414,17 +460,17 @@ export default function Dashboard() {
             </button>
           ))}
           <span style={{ color: 'var(--border)', fontSize: 12 }}>|</span>
-          <input type="date" value={range.from} onChange={e => { setRange(r => ({ ...r, from: e.target.value })); setActivePreset(null); }}
+          <input type="date" value={range.from} onChange={e => { setRange(r => ({ ...r, from: e.target.value })); setActivePreset(null); setFilterMode('custom'); }}
             style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 8, padding: '6px 10px', color: 'var(--text)', fontSize: 12 }} />
           <span style={{ color: 'var(--muted)', fontSize: 12 }}>to</span>
-          <input type="date" value={range.to} onChange={e => { setRange(r => ({ ...r, to: e.target.value })); setActivePreset(null); }}
+          <input type="date" value={range.to} onChange={e => { setRange(r => ({ ...r, to: e.target.value })); setActivePreset(null); setFilterMode('custom'); }}
             style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 8, padding: '6px 10px', color: 'var(--text)', fontSize: 12 }} />
           <button onClick={clearDates} style={{ padding: '6px 12px', background: 'transparent', border: '1px solid var(--border2)', borderRadius: 8, color: 'var(--muted)', fontSize: 12, cursor: 'pointer' }}>Clear</button>
         </div>
       </div>
 
-      {/* Sales Cycle Indicator with cursor info */}
-      {salesPeriod?.isDefault && salesPeriod?.agentPeriods && (
+      {/* Sales Cycle Indicator */}
+      {filterMode === 'sales_cycle' && salesPeriod?.agentPeriods && (
         <div style={{
           background: 'rgba(79,142,247,0.08)', border: '1px solid rgba(79,142,247,0.2)',
           borderRadius: 10, padding: '10px 16px', marginBottom: 16,
@@ -439,14 +485,14 @@ export default function Dashboard() {
               borderRadius: 6, padding: '4px 8px',
               border: ap.isCurrentCycleActive ? '1px solid rgba(52,211,153,0.2)' : 'none',
             }}>
-              {ap.agent_name}: {formatDate(ap.periodStart)} — {formatDate(ap.periodEnd)}
-              {ap.isCurrentCycleActive ? ' (active)' : ' (prev. cycle)'}
+              {ap.agent_name} ({ap.cycle_format || '?'}): {formatDate(ap.periodStart)} — {formatDate(ap.periodEnd)}
+              {ap.isCurrentCycleActive ? ' ● active' : ' ○ prev. cycle'}
             </span>
           ))}
         </div>
       )}
 
-      {/* KPI Cards — Row 1: Core metrics */}
+      {/* KPI Cards — Row 1 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 14 }}>
         <KpiCard label="Total Sales" value={totals.total_sales} sub={fmt(totals.total_revenue) + ' net revenue'} color="var(--text)" icon="📊"
           onClick={() => openDrillDown('All Sales', 'sales')} />
@@ -456,7 +502,7 @@ export default function Dashboard() {
           onClick={() => setDrillDown({ title: 'All Agents', type: 'agents' })} />
       </div>
 
-      {/* KPI Cards — Row 2: Status breakdown */}
+      {/* KPI Cards — Row 2 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14, marginBottom: 20 }}>
         <KpiCard label="Active Sales" value={totals.active} sub="Currently active" color="var(--green)" icon="✓"
           onClick={() => openDrillDown('Active Sales', 'sales', { status: 'Active' })} />
@@ -470,7 +516,7 @@ export default function Dashboard() {
           onClick={() => setDrillDown({ title: 'All Companies', type: 'companies' })} />
       </div>
 
-      {/* Status pills (clickable) */}
+      {/* Status pills */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 24 }}>
         <StatusPill status="Active" count={totals.active} bg="#34d39922" col="#34d399"
           onClick={() => openDrillDown('Active Sales', 'sales', { status: 'Active' })} />
@@ -568,7 +614,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Recent sales with cycle grouping */}
+      {/* Recent sales */}
       <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Recent Sales</div>
@@ -614,11 +660,9 @@ export default function Dashboard() {
           agents={agents}
           companies={companies}
           onClose={() => { setDrillDown(null); setDrillDownSales([]); }}
-          onNavigate={() => {}}
         />
       )}
 
-      {/* Loading overlay for drill-down */}
       {drillDown && drillDownLoading && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)' }}>
           <div style={{ background: 'var(--bg2)', padding: '16px 24px', borderRadius: 8, color: 'var(--muted)', fontSize: 13 }}>Loading details...</div>

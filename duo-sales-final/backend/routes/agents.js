@@ -82,6 +82,7 @@ router.get('/', auth, (req, res) => {
       cancelled_amount: row?.cancelled_amount || 0,
       chargeback_amount: row?.chargeback_amount || 0,
       sales_cycle_start: cycleStart,
+      cycle_format: cycleStart === 1 ? '1-End' : `${cycleStart}-${cycleStart - 1}`,
       sales_period: displayPeriod,
       full_period: { periodStart: fullPeriod.periodStart, periodEnd: fullPeriod.periodEnd },
       is_current_cycle_active: displayPeriod.isCurrentCycleActive,
