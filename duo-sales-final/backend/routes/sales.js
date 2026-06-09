@@ -1,8 +1,28 @@
 const router = require('express').Router();
-const { db } = require('../models/db');
+const { db, getSalesPeriod, getAgentSalesCycles } = require('../models/db');
 const auth = require('../middleware/auth');
 const nodemailer = require('nodemailer');
 const googleSheets = require('../services/googleSheets');
+
+// ── Helper: Determine which cycle period a sale date falls into ───────────
+function getCyclePeriodForDate(cycleStartDay, saleDate) {
+  const d = new Date(saleDate + 'T00:00:00');
+  const day = d.getDate();
+  const month = d.getMonth();
+  const year = d.getFullYear();
+
+  if (day >= cycleStartDay) {
+    const periodStart = new Date(year, month, cycleStartDay);
+    const periodEnd = new Date(year, month + 1, cycleStartDay - 1);
+    const fmt = dt => dt.toISOString().split('T')[0];
+    return { periodStart: fmt(periodStart), periodEnd: fmt(periodEnd) };
+  } else {
+    const periodStart = new Date(year, month - 1, cycleStartDay);
+    const periodEnd = new Date(year, month, cycleStartDay - 1);
+    const fmt = dt => dt.toISOString().split('T')[0];
+    return { periodStart: fmt(periodStart), periodEnd: fmt(periodEnd) };
+  }
+}
 
 // ── Email helper ─────────────────────────────────────────────────────────────
 function sendBackupEmail(sale) {
@@ -95,7 +115,7 @@ router.get('/', auth, (req, res) => {
   }
 
   if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
-  query += ' ORDER BY created_at DESC';
+  query += ' ORDER BY date DESC, created_at DESC';
 
   // Pagination
   const page = parseInt(req.query.page) || 1;
@@ -105,7 +125,18 @@ router.get('/', auth, (req, res) => {
   const total = db.prepare(`SELECT COUNT(*) as cnt FROM sales${conditions.length ? ' WHERE ' + conditions.join(' AND ') : ''}`).get(...params).cnt;
   const rows  = db.prepare(query + ` LIMIT ? OFFSET ?`).all(...params, limit, offset);
 
-  res.json({ sales: rows, total, page, pages: Math.ceil(total / limit) });
+  // Add cycle period info to each sale for grouping
+  const agentCycles = getAgentSalesCycles();
+  const cycleMap = {};
+  agentCycles.forEach(ac => { cycleMap[ac.name] = ac.sales_cycle_start || 8; });
+
+  const salesWithCycle = rows.map(s => {
+    const cycleStart = cycleMap[s.agent_name] || 8;
+    const cyclePeriod = getCyclePeriodForDate(cycleStart, s.date);
+    return { ...s, cycle_period_start: cyclePeriod.periodStart, cycle_period_end: cyclePeriod.periodEnd };
+  });
+
+  res.json({ sales: salesWithCycle, total, page, pages: Math.ceil(total / limit) });
 });
 
 // ── GET single sale ───────────────────────────────────────────────────────────

@@ -1,6 +1,26 @@
 const router = require('express').Router();
-const { db, getSalesPeriod, getAgentSalesCycles } = require('../models/db');
+const { db, getSalesPeriod, getDisplayPeriod, getAgentSalesCycles } = require('../models/db');
 const auth = require('../middleware/auth');
+
+// Helper: Determine which cycle period a sale date falls into for a given agent
+function getCyclePeriodForDate(cycleStartDay, saleDate) {
+  const d = new Date(saleDate + 'T00:00:00');
+  const day = d.getDate();
+  const month = d.getMonth();
+  const year = d.getFullYear();
+
+  if (day >= cycleStartDay) {
+    const periodStart = new Date(year, month, cycleStartDay);
+    const periodEnd = new Date(year, month + 1, cycleStartDay - 1);
+    const fmt = dt => dt.toISOString().split('T')[0];
+    return { periodStart: fmt(periodStart), periodEnd: fmt(periodEnd) };
+  } else {
+    const periodStart = new Date(year, month - 1, cycleStartDay);
+    const periodEnd = new Date(year, month, cycleStartDay - 1);
+    const fmt = dt => dt.toISOString().split('T')[0];
+    return { periodStart: fmt(periodStart), periodEnd: fmt(periodEnd) };
+  }
+}
 
 router.get('/', auth, (req, res) => {
   const { from, to, filter } = req.query;
@@ -9,17 +29,17 @@ router.get('/', auth, (req, res) => {
   const agentCycles = getAgentSalesCycles();
 
   const results = agentCycles.map(ac => {
-    const cycleStart = ac.sales_cycle_start || 7;
+    const cycleStart = ac.sales_cycle_start || 8;
 
     // Determine date range based on filter
     let effectiveFrom = null;
     let effectiveTo = null;
 
     if (filter === 'monthly') {
-      // Use agent's sales cycle
-      const period = getSalesPeriod(cycleStart, new Date());
-      effectiveFrom = period.periodStart;
-      effectiveTo = period.periodEnd;
+      // Use cursor-based display period
+      const displayPeriod = getDisplayPeriod(cycleStart, new Date());
+      effectiveFrom = displayPeriod.periodStart;
+      effectiveTo = displayPeriod.periodEnd;
     } else if (filter === 'custom' && from && to) {
       effectiveFrom = from;
       effectiveTo = to;
@@ -46,11 +66,12 @@ router.get('/', auth, (req, res) => {
       WHERE s.agent_name = ?${dateCond}
     `).get(ac.name, ...params);
 
-    // Get sales period info
-    const salesPeriod = getSalesPeriod(cycleStart, new Date());
+    // Get display period info with cursor logic
+    const displayPeriod = getDisplayPeriod(cycleStart, new Date());
+    const fullPeriod = getSalesPeriod(cycleStart, new Date());
 
     return {
-      id: ac.name, // Using name as identifier since we don't have the id here
+      id: ac.name,
       name: ac.name,
       total_sales: row?.total_sales || 0,
       total_revenue: row?.total_revenue || 0,
@@ -61,7 +82,10 @@ router.get('/', auth, (req, res) => {
       cancelled_amount: row?.cancelled_amount || 0,
       chargeback_amount: row?.chargeback_amount || 0,
       sales_cycle_start: cycleStart,
-      sales_period: salesPeriod
+      sales_period: displayPeriod,
+      full_period: { periodStart: fullPeriod.periodStart, periodEnd: fullPeriod.periodEnd },
+      is_current_cycle_active: displayPeriod.isCurrentCycleActive,
+      cycle_label: displayPeriod.cycleLabel
     };
   });
 

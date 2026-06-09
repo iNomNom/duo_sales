@@ -1,21 +1,49 @@
 const router = require('express').Router();
-const { db, getSalesPeriod, getAgentSalesCycles } = require('../models/db');
+const { db, getSalesPeriod, getDisplayPeriod, getAgentSalesCycles } = require('../models/db');
 const auth = require('../middleware/auth');
 
-// Helper: Calculate per-agent sales period revenue for dashboard
-// This handles the case where different agents have different sales cycles
+// Helper: Determine which cycle period a sale date falls into for a given agent
+function getCyclePeriodForDate(cycleStartDay, saleDate) {
+  const d = new Date(saleDate + 'T00:00:00');
+  const day = d.getDate();
+  const month = d.getMonth();
+  const year = d.getFullYear();
+
+  if (day >= cycleStartDay) {
+    // Sale is in the cycle that started this month
+    const periodStart = new Date(year, month, cycleStartDay);
+    const periodEnd = new Date(year, month + 1, cycleStartDay - 1);
+    const fmt = dt => dt.toISOString().split('T')[0];
+    return { periodStart: fmt(periodStart), periodEnd: fmt(periodEnd) };
+  } else {
+    // Sale is in the cycle that started last month
+    const periodStart = new Date(year, month - 1, cycleStartDay);
+    const periodEnd = new Date(year, month, cycleStartDay - 1);
+    const fmt = dt => dt.toISOString().split('T')[0];
+    return { periodStart: fmt(periodStart), periodEnd: fmt(periodEnd) };
+  }
+}
+
+// Helper: Calculate per-agent sales period revenue for dashboard using cursor logic
 function computeDashboardWithAgentCycles(userRole, userName, customFrom, customTo) {
   const agentCycles = getAgentSalesCycles();
   const now = new Date();
 
-  // For each agent, calculate their current sales period
+  // For each agent, calculate their display period using cursor logic
   const agentPeriods = agentCycles.map(a => {
-    const period = getSalesPeriod(a.sales_cycle_start || 7, now);
-    return { name: a.name, cycleStart: a.sales_cycle_start || 7, ...period };
+    const cycleStart = a.sales_cycle_start || 8;
+    const displayPeriod = getDisplayPeriod(cycleStart, now);
+    const fullPeriod = getSalesPeriod(cycleStart, now);
+    return {
+      name: a.name,
+      cycleStart,
+      ...displayPeriod,
+      fullPeriodStart: fullPeriod.periodStart,
+      fullPeriodEnd: fullPeriod.periodEnd
+    };
   });
 
-  // Calculate total revenue using per-agent sales periods
-  // Net revenue = Active + Pending only (exclude Cancelled + Chargeback)
+  // Calculate total revenue using per-agent display periods
   let totalSales = 0;
   let totalRevenue = 0;
   let activeCount = 0;
@@ -25,10 +53,9 @@ function computeDashboardWithAgentCycles(userRole, userName, customFrom, customT
   let chargebackAmount = 0;
 
   for (const ap of agentPeriods) {
-    // If agent view, only calculate for their own period
     if (userRole === 'agent' && ap.name !== userName) continue;
 
-    // Use custom dates if provided, otherwise use sales period
+    // Use custom dates if provided, otherwise use display period (cursor logic)
     const from = customFrom || ap.periodStart;
     const to = customTo || ap.periodEnd;
 
@@ -70,9 +97,7 @@ router.get('/dashboard', auth, (req, res) => {
   const hasCustomDates = from && to;
 
   // ── Determine default sales period ────────────────────────────────────
-  // Default: use per-agent sales cycles
-  // If custom from/to provided, use those instead
-  const userCycleStart = req.user.sales_cycle_start || 7;
+  const userCycleStart = req.user.sales_cycle_start || 8;
   const defaultPeriod = getSalesPeriod(userCycleStart, new Date());
 
   const effectiveFrom = from || defaultPeriod.periodStart;
@@ -82,7 +107,7 @@ router.get('/dashboard', auth, (req, res) => {
   let totals;
 
   if (!hasCustomDates) {
-    // Use per-agent sales cycles for totals
+    // Use per-agent display periods (cursor logic) for totals
     totals = computeDashboardWithAgentCycles(req.user.role, req.user.name);
   } else {
     // Use custom date range with standard query
@@ -123,7 +148,7 @@ router.get('/dashboard', auth, (req, res) => {
     GROUP BY month ORDER BY month
   `).all(...monthlyP);
 
-  // ── Top agents (admin/manager) using per-agent sales cycles ───────────
+  // ── Top agents (admin/manager) using cursor logic ──────────────────────
   let agents = [];
   if (req.user.role !== 'agent') {
     const agentCycles = getAgentSalesCycles();
@@ -133,9 +158,10 @@ router.get('/dashboard', auth, (req, res) => {
         agentFrom = effectiveFrom;
         agentTo = effectiveTo;
       } else {
-        const period = getSalesPeriod(ac.sales_cycle_start || 7, new Date());
-        agentFrom = period.periodStart;
-        agentTo = period.periodEnd;
+        // Use cursor-based display period
+        const displayPeriod = getDisplayPeriod(ac.sales_cycle_start || 8, new Date());
+        agentFrom = displayPeriod.periodStart;
+        agentTo = displayPeriod.periodEnd;
       }
 
       const row = db.prepare(`
@@ -215,11 +241,19 @@ router.get('/dashboard', auth, (req, res) => {
     `SELECT COUNT(DISTINCT company_name) as count FROM sales WHERE company_name IS NOT NULL AND company_name != '' AND date >= ? AND date <= ?${req.user.role === 'agent' ? ' AND agent_name = ?' : ''}`
   ).get(...(req.user.role === 'agent' ? [effectiveFrom, effectiveTo, req.user.name] : [effectiveFrom, effectiveTo])).count;
 
-  // ── Include sales period info in response ─────────────────────────────
+  // ── Include sales period info in response with cursor logic ─────────────
   const agentCycles = getAgentSalesCycles();
   const salesPeriods = agentCycles.map(a => {
-    const period = getSalesPeriod(a.sales_cycle_start || 7, new Date());
-    return { agent_name: a.name, cycle_start: a.sales_cycle_start || 7, ...period };
+    const cycleStart = a.sales_cycle_start || 8;
+    const displayPeriod = getDisplayPeriod(cycleStart, new Date());
+    const fullPeriod = getSalesPeriod(cycleStart, new Date());
+    return {
+      agent_name: a.name,
+      cycle_start: cycleStart,
+      ...displayPeriod,
+      fullPeriodStart: fullPeriod.periodStart,
+      fullPeriodEnd: fullPeriod.periodEnd
+    };
   });
 
   res.json({
@@ -253,16 +287,15 @@ router.get('/agent/:name', auth, (req, res) => {
 
   // Determine the agent's sales cycle
   const agentUser = db.prepare("SELECT sales_cycle_start FROM users WHERE name = ? AND role = 'agent'").get(name);
-  const cycleStart = agentUser?.sales_cycle_start || 7;
+  const cycleStart = agentUser?.sales_cycle_start || 8;
 
-  // Determine date range
+  // Determine date range using cursor logic for monthly filter
   let effectiveFrom, effectiveTo;
   if (filter === 'all_time' || (!from && !to && filter !== 'monthly')) {
-    // All time - no date filter (but default to sales cycle for initial load)
     if (filter === 'monthly' || (!from && !to)) {
-      const period = getSalesPeriod(cycleStart, new Date());
-      effectiveFrom = period.periodStart;
-      effectiveTo = period.periodEnd;
+      const displayPeriod = getDisplayPeriod(cycleStart, new Date());
+      effectiveFrom = displayPeriod.periodStart;
+      effectiveTo = displayPeriod.periodEnd;
     } else {
       effectiveFrom = null;
       effectiveTo = null;
@@ -279,6 +312,12 @@ router.get('/agent/:name', auth, (req, res) => {
   if (effectiveTo) { where += ' AND date <= ?'; params.push(effectiveTo); }
 
   const sales = db.prepare(`SELECT * FROM sales ${where} ORDER BY date DESC`).all(...params);
+
+  // Group sales by cycle period
+  const salesWithCycle = sales.map(s => {
+    const cyclePeriod = getCyclePeriodForDate(cycleStart, s.date);
+    return { ...s, cycle_period_start: cyclePeriod.periodStart, cycle_period_end: cyclePeriod.periodEnd };
+  });
 
   // Stats: net revenue (exclude Cancelled + Chargeback)
   let statsWhere = 'WHERE agent_name = ?';
@@ -307,14 +346,15 @@ router.get('/agent/:name', auth, (req, res) => {
     GROUP BY month ORDER BY month DESC LIMIT 6
   `).all(name);
 
-  // Include sales period info
-  const salesPeriod = getSalesPeriod(cycleStart, new Date());
+  // Include sales period info with cursor logic
+  const displayPeriod = getDisplayPeriod(cycleStart, new Date());
+  const fullSalesPeriod = getSalesPeriod(cycleStart, new Date());
 
   res.json({
     stats,
-    sales,
+    sales: salesWithCycle,
     monthly,
-    salesCycle: { cycle_start: cycleStart, ...salesPeriod },
+    salesCycle: { cycle_start: cycleStart, ...displayPeriod, fullPeriodStart: fullSalesPeriod.periodStart, fullPeriodEnd: fullSalesPeriod.periodEnd },
     periodUsed: { from: effectiveFrom, to: effectiveTo }
   });
 });

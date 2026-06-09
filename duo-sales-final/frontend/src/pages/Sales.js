@@ -159,6 +159,7 @@ export default function Sales() {
   const [loading, setLoading] = useState(true);
   const [editSale, setEditSale] = useState(null);
   const [filters, setFilters] = useState({ search: '', status: '', from: '', to: '' });
+  const [groupByCycle, setGroupByCycle] = useState(true);
   const [visibleColumns, setVisibleColumns] = useState(
     ALL_COLUMNS.filter(c => c.visible).map(c => c.key)
   );
@@ -203,9 +204,9 @@ export default function Sales() {
     try {
       const res = await axios.get('/api/sales', { params: { ...filters, limit: 99999 } });
       const allSales = res.data.sales;
-      const headers = ['ID','Date','Agent','Carrier','Company','Email','Phone','Lane','Lane Start','Truck','Amount','Purpose','Address','Acc Type','Status','Closed By','Notes'];
+      const headers = ['ID','Date','Agent','Carrier','Company','Email','Phone','Lane','Lane Start','Truck','Amount','Purpose','Address','Acc Type','Status','Closed By','Notes','Cycle Period Start','Cycle Period End'];
       const rows = allSales.map(s =>
-        [s.id, s.date, s.agent_name, s.carrier_name, s.company_name, s.email, s.phone_number, s.lane_details, s.lane_start_date, s.truck, s.amount, s.purpose, s.address, s.acc_type, s.status, s.closed_by, s.notes]
+        [s.id, s.date, s.agent_name, s.carrier_name, s.company_name, s.email, s.phone_number, s.lane_details, s.lane_start_date, s.truck, s.amount, s.purpose, s.address, s.acc_type, s.status, s.closed_by, s.notes, s.cycle_period_start || '', s.cycle_period_end || '']
           .map(v => `"${(v || '').toString().replace(/"/g, '""')}"`)
           .join(',')
       );
@@ -244,6 +245,33 @@ export default function Sales() {
     return <span>{val || '—'}</span>;
   };
 
+  // Group sales by cycle period
+  const groupedSales = {};
+  sales.forEach(s => {
+    const cycleKey = s.cycle_period_start && s.cycle_period_end
+      ? `${s.cycle_period_start}_${s.cycle_period_end}`
+      : 'unknown';
+    if (!groupedSales[cycleKey]) {
+      groupedSales[cycleKey] = {
+        periodStart: s.cycle_period_start,
+        periodEnd: s.cycle_period_end,
+        sales: []
+      };
+    }
+    groupedSales[cycleKey].sales.push(s);
+  });
+
+  // Sort groups by period start date descending
+  const sortedGroups = Object.values(groupedSales).sort((a, b) => {
+    return (b.periodStart || '').localeCompare(a.periodStart || '');
+  });
+
+  const formatDate = (d) => {
+    if (!d) return '';
+    const date = new Date(d + 'T00:00:00');
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
   const INPUT_S = { background: 'var(--bg3)', border: '1px solid var(--border2)', borderRadius: 8, padding: '7px 12px', color: 'var(--text)', fontSize: 12, outline: 'none' };
 
   return (
@@ -255,6 +283,15 @@ export default function Sales() {
           <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>{total} total records · Showing {visibleCols.length} of {ALL_COLUMNS.length} columns</p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button onClick={() => setGroupByCycle(!groupByCycle)}
+            style={{
+              padding: '7px 14px', background: groupByCycle ? 'var(--accent)' : 'transparent',
+              border: groupByCycle ? '1px solid var(--accent)' : '1px solid var(--border2)',
+              borderRadius: 8, color: groupByCycle ? '#fff' : 'var(--muted)', fontSize: 12, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 6
+            }}>
+            <span>📅</span> {groupByCycle ? 'Grouped by Cycle' : 'Group by Cycle'}
+          </button>
           <ColumnPicker columns={ALL_COLUMNS} visibleColumns={visibleColumns} onToggle={toggleColumn} />
           <button onClick={exportCSV} style={{ padding: '8px 16px', background: 'transparent', border: '1px solid var(--border2)', borderRadius: 8, color: 'var(--muted)', fontSize: 12, cursor: 'pointer' }}>Export CSV</button>
           <button onClick={() => navigate('/new-sale')} style={{ padding: '8px 16px', background: 'linear-gradient(135deg,#4f8ef7,#6c63ff)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ New Sale</button>
@@ -274,60 +311,134 @@ export default function Sales() {
         <button onClick={() => { setFilters({ search: '', status: '', from: '', to: '' }); setPage(1); }} style={{ ...INPUT_S, cursor: 'pointer', background: 'transparent' }}>Clear</button>
       </div>
 
-      {/* Table */}
+      {/* Table — Grouped by Cycle or Flat */}
       <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                {visibleCols.map(col => (
-                  <th key={col.key} style={{ textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap', minWidth: col.width }}>
-                    {col.label}
-                  </th>
-                ))}
-                <th style={{ textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap', position: 'sticky', right: 0, background: 'var(--bg2)', zIndex: 1 }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={visibleCols.length + 1} style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</td></tr>
-              ) : sales.length === 0 ? (
-                <tr><td colSpan={visibleCols.length + 1} style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>No sales found</td></tr>
-              ) : sales.map(s => (
-                <tr key={s.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.1s' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                  {visibleCols.map(col => (
-                    <td key={col.key} style={{ padding: '10px 12px', color: col.key === 'date' ? 'var(--muted)' : 'var(--text)', fontSize: col.key === 'date' ? 12 : undefined }}>
-                      {renderCell(s, col)}
-                    </td>
-                  ))}
-                  <td style={{ padding: '10px 12px', whiteSpace: 'nowrap', position: 'sticky', right: 0, background: 'var(--bg2)', zIndex: 1, borderBottom: '1px solid var(--border)' }}>
-                    {(user?.role === 'admin' || user?.role === 'manager') && (
-                      <>
-                        {['Active', 'Pending', 'Cancelled', 'Chargeback'].map(st => (
-                          s.status !== st && (
-                            <button key={st} onClick={() => changeStatus(s.id, st)} title={`Set ${st}`}
-                              style={{
-                                padding: '3px 6px', marginRight: 2, borderRadius: 4, fontSize: 9, cursor: 'pointer', fontWeight: 600,
-                                background: (STATUS_COLORS[st] || '#888') + '22', border: `1px solid ${STATUS_COLORS[st] || '#888'}40`,
-                                color: STATUS_COLORS[st] || 'var(--muted)',
-                              }}>
-                              {st === 'Active' ? '✓' : st === 'Pending' ? '⏳' : st === 'Cancelled' ? '✕' : '↩'}
-                            </button>
-                          )
+          {loading ? (
+            <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>
+          ) : sales.length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>No sales found</div>
+          ) : groupByCycle ? (
+            /* ── Grouped View ── */
+            sortedGroups.map((group, gi) => (
+              <div key={`${group.periodStart}_${group.periodEnd}`}>
+                {/* Cycle Period Header */}
+                <div style={{
+                  background: 'rgba(79,142,247,0.08)', borderBottom: '1px solid rgba(79,142,247,0.2)',
+                  padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  position: 'sticky', top: 0, zIndex: 2,
+                }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>
+                    📅 Cycle: {formatDate(group.periodStart)} — {formatDate(group.periodEnd)}
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                    {group.sales.length} sales · Net: ${group.sales.reduce((sum, s) => {
+                      if (s.status === 'Cancelled' || s.status === 'Chargeback') return sum;
+                      return sum + (Number(s.amount) || 0);
+                    }, 0).toLocaleString()}
+                  </span>
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                  {gi === 0 && (
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        {visibleCols.map(col => (
+                          <th key={col.key} style={{ textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap', minWidth: col.width }}>
+                            {col.label}
+                          </th>
                         ))}
-                        <button onClick={() => setEditSale({ ...s })} style={{ padding: '3px 8px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--muted)', fontSize: 10, cursor: 'pointer', marginLeft: 4 }}>Edit</button>
-                      </>
-                    )}
-                    {user?.role === 'admin' && (
-                      <button onClick={() => deleteSale(s.id)} style={{ padding: '3px 8px', background: 'transparent', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 4, color: 'var(--red)', fontSize: 10, cursor: 'pointer', marginLeft: 2 }}>Del</button>
-                    )}
-                  </td>
+                        <th style={{ textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap', position: 'sticky', right: 0, background: 'var(--bg2)', zIndex: 1 }}>Actions</th>
+                      </tr>
+                    </thead>
+                  )}
+                  <tbody>
+                    {group.sales.map(s => (
+                      <tr key={s.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.1s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                        {visibleCols.map(col => (
+                          <td key={col.key} style={{ padding: '10px 12px', color: col.key === 'date' ? 'var(--muted)' : 'var(--text)', fontSize: col.key === 'date' ? 12 : undefined }}>
+                            {renderCell(s, col)}
+                          </td>
+                        ))}
+                        <td style={{ padding: '10px 12px', whiteSpace: 'nowrap', position: 'sticky', right: 0, background: 'var(--bg2)', zIndex: 1, borderBottom: '1px solid var(--border)' }}>
+                          {(user?.role === 'admin' || user?.role === 'manager') && (
+                            <>
+                              {['Active', 'Pending', 'Cancelled', 'Chargeback'].map(st => (
+                                s.status !== st && (
+                                  <button key={st} onClick={() => changeStatus(s.id, st)} title={`Set ${st}`}
+                                    style={{
+                                      padding: '3px 6px', marginRight: 2, borderRadius: 4, fontSize: 9, cursor: 'pointer', fontWeight: 600,
+                                      background: (STATUS_COLORS[st] || '#888') + '22', border: `1px solid ${STATUS_COLORS[st] || '#888'}40`,
+                                      color: STATUS_COLORS[st] || 'var(--muted)',
+                                    }}>
+                                    {st === 'Active' ? '✓' : st === 'Pending' ? '⏳' : st === 'Cancelled' ? '✕' : '↩'}
+                                  </button>
+                                )
+                              ))}
+                              <button onClick={() => setEditSale({ ...s })} style={{ padding: '3px 8px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--muted)', fontSize: 10, cursor: 'pointer', marginLeft: 4 }}>Edit</button>
+                            </>
+                          )}
+                          {user?.role === 'admin' && (
+                            <button onClick={() => deleteSale(s.id)} style={{ padding: '3px 8px', background: 'transparent', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 4, color: 'var(--red)', fontSize: 10, cursor: 'pointer', marginLeft: 2 }}>Del</button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))
+          ) : (
+            /* ── Flat View (no grouping) ── */
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  {visibleCols.map(col => (
+                    <th key={col.key} style={{ textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap', minWidth: col.width }}>
+                      {col.label}
+                    </th>
+                  ))}
+                  <th style={{ textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap', position: 'sticky', right: 0, background: 'var(--bg2)', zIndex: 1 }}>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sales.map(s => (
+                  <tr key={s.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.1s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    {visibleCols.map(col => (
+                      <td key={col.key} style={{ padding: '10px 12px', color: col.key === 'date' ? 'var(--muted)' : 'var(--text)', fontSize: col.key === 'date' ? 12 : undefined }}>
+                        {renderCell(s, col)}
+                      </td>
+                    ))}
+                    <td style={{ padding: '10px 12px', whiteSpace: 'nowrap', position: 'sticky', right: 0, background: 'var(--bg2)', zIndex: 1, borderBottom: '1px solid var(--border)' }}>
+                      {(user?.role === 'admin' || user?.role === 'manager') && (
+                        <>
+                          {['Active', 'Pending', 'Cancelled', 'Chargeback'].map(st => (
+                            s.status !== st && (
+                              <button key={st} onClick={() => changeStatus(s.id, st)} title={`Set ${st}`}
+                                style={{
+                                  padding: '3px 6px', marginRight: 2, borderRadius: 4, fontSize: 9, cursor: 'pointer', fontWeight: 600,
+                                  background: (STATUS_COLORS[st] || '#888') + '22', border: `1px solid ${STATUS_COLORS[st] || '#888'}40`,
+                                  color: STATUS_COLORS[st] || 'var(--muted)',
+                                }}>
+                                {st === 'Active' ? '✓' : st === 'Pending' ? '⏳' : st === 'Cancelled' ? '✕' : '↩'}
+                              </button>
+                            )
+                          ))}
+                          <button onClick={() => setEditSale({ ...s })} style={{ padding: '3px 8px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--muted)', fontSize: 10, cursor: 'pointer', marginLeft: 4 }}>Edit</button>
+                        </>
+                      )}
+                      {user?.role === 'admin' && (
+                        <button onClick={() => deleteSale(s.id)} style={{ padding: '3px 8px', background: 'transparent', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 4, color: 'var(--red)', fontSize: 10, cursor: 'pointer', marginLeft: 2 }}>Del</button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
         {/* Pagination */}

@@ -101,14 +101,41 @@ function DrillDownModal({ title, sales, agents, companies, type, onClose, onNavi
            (s.lane_details || '').toLowerCase().includes(q);
   });
 
-  const paginatedSales = filteredSales.slice((page - 1) * perPage, page * perPage);
+  // Group sales by cycle period
+  const groupedSales = {};
+  filteredSales.forEach(s => {
+    const cycleKey = s.cycle_period_start && s.cycle_period_end
+      ? `${s.cycle_period_start}_${s.cycle_period_end}`
+      : 'unknown';
+    if (!groupedSales[cycleKey]) {
+      groupedSales[cycleKey] = {
+        periodStart: s.cycle_period_start,
+        periodEnd: s.cycle_period_end,
+        sales: []
+      };
+    }
+    groupedSales[cycleKey].sales.push(s);
+  });
+
+  // Sort groups by period start date descending
+  const sortedGroups = Object.values(groupedSales).sort((a, b) => {
+    return (b.periodStart || '').localeCompare(a.periodStart || '');
+  });
+
   const totalPages = Math.ceil(filteredSales.length / perPage);
+  const paginatedSales = filteredSales.slice((page - 1) * perPage, page * perPage);
 
   // Net revenue: exclude Cancelled/Chargeback
   const totalRevenue = filteredSales.reduce((sum, s) => {
     if (s.status === 'Cancelled' || s.status === 'Chargeback') return sum;
     return sum + (Number(s.amount) || 0);
   }, 0);
+
+  const formatDate = (d) => {
+    if (!d) return '';
+    const date = new Date(d + 'T00:00:00');
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -143,33 +170,56 @@ function DrillDownModal({ title, sales, agents, companies, type, onClose, onNavi
               {filteredSales.length === 0 ? (
                 <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>No sales found</div>
               ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 16 }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                      {['Date', 'Agent', 'Carrier', 'Company', 'Lane', 'Amount', 'Status', 'Closed By'].map(h => (
-                        <th key={h} style={{ textAlign: 'left', padding: '10px 10px', fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paginatedSales.map(s => (
-                      <tr key={s.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                        <td style={{ padding: '10px 10px', color: 'var(--muted)', fontSize: 12 }}>{s.date}</td>
-                        <td style={{ padding: '10px 10px', color: 'var(--text)' }}>{s.agent_name}</td>
-                        <td style={{ padding: '10px 10px', color: 'var(--text)', fontWeight: 500 }}>{s.carrier_name}</td>
-                        <td style={{ padding: '10px 10px', color: 'var(--muted)' }}>{s.company_name}</td>
-                        <td style={{ padding: '10px 10px', color: 'var(--muted)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.lane_details}</td>
-                        <td style={{ padding: '10px 10px', color: s.status === 'Cancelled' || s.status === 'Chargeback' ? 'var(--red)' : 'var(--green)', fontWeight: 600 }}>
-                          ${Number(s.amount || 0).toLocaleString()}
-                        </td>
-                        <td style={{ padding: '10px 10px' }}>
-                          <span style={{ fontSize: 11, fontWeight: 500, padding: '3px 10px', borderRadius: 20, background: (STATUS_COLORS[s.status] || '#888') + '22', color: STATUS_COLORS[s.status] || 'var(--muted)' }}>{s.status}</span>
-                        </td>
-                        <td style={{ padding: '10px 10px', color: 'var(--muted)' }}>{s.closed_by}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <>
+                  {sortedGroups.map(group => (
+                    <div key={`${group.periodStart}_${group.periodEnd}`} style={{ marginBottom: 20 }}>
+                      {/* Cycle Period Header */}
+                      <div style={{
+                        background: 'rgba(79,142,247,0.08)', border: '1px solid rgba(79,142,247,0.2)',
+                        borderRadius: 8, padding: '8px 14px', marginBottom: 8,
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        position: 'sticky', top: 0, zIndex: 1,
+                      }}>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}>
+                          Cycle: {formatDate(group.periodStart)} — {formatDate(group.periodEnd)}
+                        </span>
+                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                          {group.sales.length} sales · Net: ${group.sales.reduce((sum, s) => {
+                            if (s.status === 'Cancelled' || s.status === 'Chargeback') return sum;
+                            return sum + (Number(s.amount) || 0);
+                          }, 0).toLocaleString()}
+                        </span>
+                      </div>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                            {['Date', 'Agent', 'Carrier', 'Company', 'Lane', 'Amount', 'Status', 'Closed By'].map(h => (
+                              <th key={h} style={{ textAlign: 'left', padding: '10px 10px', fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.3px', whiteSpace: 'nowrap' }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {group.sales.map(s => (
+                            <tr key={s.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                              <td style={{ padding: '10px 10px', color: 'var(--muted)', fontSize: 12 }}>{s.date}</td>
+                              <td style={{ padding: '10px 10px', color: 'var(--text)' }}>{s.agent_name}</td>
+                              <td style={{ padding: '10px 10px', color: 'var(--text)', fontWeight: 500 }}>{s.carrier_name}</td>
+                              <td style={{ padding: '10px 10px', color: 'var(--muted)' }}>{s.company_name}</td>
+                              <td style={{ padding: '10px 10px', color: 'var(--muted)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.lane_details}</td>
+                              <td style={{ padding: '10px 10px', color: s.status === 'Cancelled' || s.status === 'Chargeback' ? 'var(--red)' : 'var(--green)', fontWeight: 600 }}>
+                                ${Number(s.amount || 0).toLocaleString()}
+                              </td>
+                              <td style={{ padding: '10px 10px' }}>
+                                <span style={{ fontSize: 11, fontWeight: 500, padding: '3px 10px', borderRadius: 20, background: (STATUS_COLORS[s.status] || '#888') + '22', color: STATUS_COLORS[s.status] || 'var(--muted)' }}>{s.status}</span>
+                              </td>
+                              <td style={{ padding: '10px 10px', color: 'var(--muted)' }}>{s.closed_by}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </>
               )}
               {totalPages > 1 && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '16px 0' }}>
@@ -266,7 +316,6 @@ export default function Dashboard() {
   const applyPreset = (preset) => {
     setActivePreset(preset.label);
     if (preset.label === 'Sales Cycle') {
-      // Don't send from/to — let the backend calculate per-agent sales periods
       setRange({ from: '', to: '' });
     } else if (preset.label === 'All Time') {
       setRange({ from: '', to: '' });
@@ -280,15 +329,22 @@ export default function Dashboard() {
     setRange({ from: '', to: '' });
   };
 
-  // Fetch filtered sales for drill-down
+  // Fetch filtered sales for drill-down — now properly passes all filter params
   const openDrillDown = async (title, type, filterParams = {}) => {
-    setDrillDown({ title, type });
+    setDrillDown({ title, type, filterParams });
     if (type === 'sales') {
       setDrillDownLoading(true);
       try {
         const params = { limit: 1000, ...filterParams };
-        if (range.from) params.from = range.from;
-        if (range.to) params.to = range.to;
+        // When in Sales Cycle mode, don't override with range — let backend handle per-agent cycles
+        if (activePreset !== 'Sales Cycle') {
+          if (range.from) params.from = range.from;
+          if (range.to) params.to = range.to;
+        } else {
+          // In Sales Cycle mode, use the date range from dashboard data if available
+          if (data?.salesPeriod?.from) params.from = data.salesPeriod.from;
+          if (data?.salesPeriod?.to) params.to = data.salesPeriod.to;
+        }
         const res = await axios.get('/api/sales', { params });
         setDrillDownSales(res.data.sales);
       } catch { setDrillDownSales([]); }
@@ -310,11 +366,25 @@ export default function Dashboard() {
     const date = new Date(d + 'T00:00:00');
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
-  const periodLabel = salesPeriod?.isDefault
-    ? `Sales Period: ${formatDate(salesPeriod.from)} — ${formatDate(salesPeriod.to)}`
-    : range.from && range.to
-      ? `Period: ${formatDate(range.from)} — ${formatDate(range.to)}`
-      : 'All Time';
+
+  // Build period label with cursor info
+  let periodLabel;
+  if (salesPeriod?.isDefault) {
+    const activePeriods = salesPeriod.agentPeriods || [];
+    const hasAnyActive = activePeriods.some(ap => ap.isCurrentCycleActive);
+    const hasAnyInactive = activePeriods.some(ap => !ap.isCurrentCycleActive);
+    if (hasAnyActive && hasAnyInactive) {
+      periodLabel = 'Mixed Cycle Periods (see per-agent details below)';
+    } else if (hasAnyActive) {
+      periodLabel = `Current Cycle (started): ${formatDate(salesPeriod.from)} — ${formatDate(salesPeriod.to)}`;
+    } else {
+      periodLabel = `Previous Completed Cycle: ${formatDate(salesPeriod.from)} — ${formatDate(salesPeriod.to)}`;
+    }
+  } else if (range.from && range.to) {
+    periodLabel = `Period: ${formatDate(range.from)} — ${formatDate(range.to)}`;
+  } else {
+    periodLabel = 'All Time';
+  }
 
   return (
     <div style={{ padding: 28, maxWidth: 1200 }}>
@@ -353,20 +423,24 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Sales Cycle Indicator */}
+      {/* Sales Cycle Indicator with cursor info */}
       {salesPeriod?.isDefault && salesPeriod?.agentPeriods && (
         <div style={{
           background: 'rgba(79,142,247,0.08)', border: '1px solid rgba(79,142,247,0.2)',
           borderRadius: 10, padding: '10px 16px', marginBottom: 16,
           display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap'
         }}>
-          <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500 }}>Sales Cycles Active:</span>
+          <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500 }}>Sales Cycles:</span>
           {salesPeriod.agentPeriods.map(ap => (
             <span key={ap.agent_name} style={{
-              fontSize: 11, color: 'var(--muted)',
-              background: 'var(--bg3)', borderRadius: 6, padding: '4px 8px',
+              fontSize: 11,
+              color: ap.isCurrentCycleActive ? '#34d399' : 'var(--muted)',
+              background: ap.isCurrentCycleActive ? 'rgba(52,211,153,0.1)' : 'var(--bg3)',
+              borderRadius: 6, padding: '4px 8px',
+              border: ap.isCurrentCycleActive ? '1px solid rgba(52,211,153,0.2)' : 'none',
             }}>
               {ap.agent_name}: {formatDate(ap.periodStart)} — {formatDate(ap.periodEnd)}
+              {ap.isCurrentCycleActive ? ' (active)' : ' (prev. cycle)'}
             </span>
           ))}
         </div>
@@ -494,7 +568,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Recent sales */}
+      {/* Recent sales with cycle grouping */}
       <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Recent Sales</div>

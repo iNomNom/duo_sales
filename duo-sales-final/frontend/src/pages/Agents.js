@@ -7,7 +7,7 @@ const STATUS_COLORS = { Active: '#34d399', Pending: '#fbbf24', Cancelled: '#f871
 
 // ── Sales Cycle Edit Modal ──────────────────────────────────────────────
 function SalesCycleModal({ agent, onClose, onSave }) {
-  const [cycleStart, setCycleStart] = useState(agent.sales_cycle_start || 7);
+  const [cycleStart, setCycleStart] = useState(agent.sales_cycle_start || 8);
   const [msg, setMsg] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -62,7 +62,7 @@ function SalesCycleModal({ agent, onClose, onSave }) {
             </div>
           </div>
           <div style={{ background: 'var(--bg3)', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: 'var(--muted)' }}>
-            Example: Day 7 means sales cycle runs from the 7th of each month to the 6th of the next month.
+            Example: Day 8 means sales cycle runs from the 8th of each month to the 7th of the next month.
             Day 1 means calendar month (1st to end of month).
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -231,36 +231,65 @@ function AgentDetailModal({ agent, onClose }) {
                 </div>
               )}
 
-              {/* Sales table */}
+              {/* Sales table — grouped by cycle */}
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 12 }}>Sales ({data.sales.length})</div>
               {data.sales.length === 0 ? (
                 <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>No sales in this period</div>
-              ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                      {['Date', 'Carrier', 'Company', 'Lane', 'Amount', 'Status', 'Closed By'].map(h => (
-                        <th key={h} style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.sales.map(s => (
-                      <tr key={s.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                        <td style={{ padding: '8px 10px', color: 'var(--muted)' }}>{s.date}</td>
-                        <td style={{ padding: '8px 10px', color: 'var(--text)', fontWeight: 500 }}>{s.carrier_name}</td>
-                        <td style={{ padding: '8px 10px', color: 'var(--muted)' }}>{s.company_name}</td>
-                        <td style={{ padding: '8px 10px', color: 'var(--muted)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.lane_details}</td>
-                        <td style={{ padding: '8px 10px', color: s.status === 'Cancelled' || s.status === 'Chargeback' ? 'var(--red)' : 'var(--green)', fontWeight: 600 }}>${Number(s.amount || 0).toLocaleString()}</td>
-                        <td style={{ padding: '8px 10px' }}>
-                          <span style={{ fontSize: 10, fontWeight: 500, padding: '2px 8px', borderRadius: 12, background: (STATUS_COLORS[s.status] || '#888') + '22', color: STATUS_COLORS[s.status] || 'var(--muted)' }}>{s.status}</span>
-                        </td>
-                        <td style={{ padding: '8px 10px', color: 'var(--muted)' }}>{s.closed_by}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
+              ) : (() => {
+                // Group sales by cycle period
+                const grouped = {};
+                data.sales.forEach(s => {
+                  const key = s.cycle_period_start && s.cycle_period_end
+                    ? `${s.cycle_period_start}_${s.cycle_period_end}`
+                    : 'unknown';
+                  if (!grouped[key]) {
+                    grouped[key] = { periodStart: s.cycle_period_start, periodEnd: s.cycle_period_end, sales: [] };
+                  }
+                  grouped[key].sales.push(s);
+                });
+                const sortedGroups = Object.values(grouped).sort((a, b) => (b.periodStart || '').localeCompare(a.periodStart || ''));
+
+                return sortedGroups.map(group => (
+                  <div key={`${group.periodStart}_${group.periodEnd}`} style={{ marginBottom: 16 }}>
+                    <div style={{
+                      background: 'rgba(79,142,247,0.08)', border: '1px solid rgba(79,142,247,0.2)',
+                      borderRadius: 6, padding: '6px 12px', marginBottom: 6,
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)' }}>
+                        Cycle: {formatDate(group.periodStart)} — {formatDate(group.periodEnd)}
+                      </span>
+                      <span style={{ fontSize: 10, color: 'var(--muted)' }}>
+                        {group.sales.length} sales
+                      </span>
+                    </div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                          {['Date', 'Carrier', 'Company', 'Lane', 'Amount', 'Status', 'Closed By'].map(h => (
+                            <th key={h} style={{ textAlign: 'left', padding: '8px 10px', fontSize: 10, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.sales.map(s => (
+                          <tr key={s.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                            <td style={{ padding: '8px 10px', color: 'var(--muted)' }}>{s.date}</td>
+                            <td style={{ padding: '8px 10px', color: 'var(--text)', fontWeight: 500 }}>{s.carrier_name}</td>
+                            <td style={{ padding: '8px 10px', color: 'var(--muted)' }}>{s.company_name}</td>
+                            <td style={{ padding: '8px 10px', color: 'var(--muted)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.lane_details}</td>
+                            <td style={{ padding: '8px 10px', color: s.status === 'Cancelled' || s.status === 'Chargeback' ? 'var(--red)' : 'var(--green)', fontWeight: 600 }}>${Number(s.amount || 0).toLocaleString()}</td>
+                            <td style={{ padding: '8px 10px' }}>
+                              <span style={{ fontSize: 10, fontWeight: 500, padding: '2px 8px', borderRadius: 12, background: (STATUS_COLORS[s.status] || '#888') + '22', color: STATUS_COLORS[s.status] || 'var(--muted)' }}>{s.status}</span>
+                            </td>
+                            <td style={{ padding: '8px 10px', color: 'var(--muted)' }}>{s.closed_by}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ));
+              })()}
             </>
           )}
         </div>
@@ -323,7 +352,7 @@ export default function Agents() {
   const [agents, setAgents] = useState([]);
   const [users, setUsers] = useState([]);
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'agent', sales_cycle_start: 1 });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'agent', sales_cycle_start: 8 });
   const [msg, setMsg] = useState('');
   const [selectedAgent, setSelectedAgent] = useState(null);
   const [passwordChangeUser, setPasswordChangeUser] = useState(null);
@@ -359,7 +388,7 @@ export default function Agents() {
       await axios.post('/api/auth/register', form);
       setMsg('User created successfully!');
       setShowAdd(false);
-      setForm({ name: '', email: '', password: '', role: 'agent', sales_cycle_start: 1 });
+      setForm({ name: '', email: '', password: '', role: 'agent', sales_cycle_start: 8 });
       load();
     } catch (err) {
       setMsg(err.response?.data?.error || 'Error');
@@ -499,10 +528,12 @@ export default function Agents() {
                 <div style={{ fontSize: 18, fontWeight: 600, color: 'var(--green)', marginTop: 2 }}>${Number(a.total_revenue || 0).toLocaleString()}</div>
               </div>
             </div>
-            {/* Sales period info */}
+            {/* Sales period info with cursor indicator */}
             {a.sales_period && (
-              <div style={{ marginTop: 10, fontSize: 10, color: 'var(--muted)', background: 'var(--bg3)', borderRadius: 6, padding: '6px 10px' }}>
-                {formatDate(a.sales_period.periodStart)} — {formatDate(a.sales_period.periodEnd)}
+              <div style={{ marginTop: 10, fontSize: 10, color: 'var(--muted)', background: a.is_current_cycle_active ? 'rgba(52,211,153,0.08)' : 'var(--bg3)', borderRadius: 6, padding: '6px 10px', border: a.is_current_cycle_active ? '1px solid rgba(52,211,153,0.15)' : 'none' }}>
+                <span style={{ color: a.is_current_cycle_active ? '#34d399' : 'var(--muted)' }}>
+                  {a.is_current_cycle_active ? '● Active Cycle' : '○ Previous Cycle'}
+                </span>: {formatDate(a.sales_period.periodStart)} — {formatDate(a.sales_period.periodEnd)}
               </div>
             )}
             {/* Loss indicators */}
@@ -547,7 +578,7 @@ export default function Agents() {
                 <td style={{ padding: '10px 12px' }}>
                   <span style={{ fontSize: 11, color: 'var(--accent)', cursor: 'pointer', background: 'rgba(79,142,247,0.1)', padding: '3px 8px', borderRadius: 4 }}
                     onClick={(e) => { e.stopPropagation(); setSalesCycleAgent(u); }}>
-                    {u.sales_cycle_start || 7}-{(u.sales_cycle_start || 7) === 1 ? 'end' : (u.sales_cycle_start || 7) - 1} ✎
+                    {u.sales_cycle_start || 8}-{(u.sales_cycle_start || 8) === 1 ? 'end' : (u.sales_cycle_start || 8) - 1} ✎
                   </span>
                 </td>
                 <td style={{ padding: '10px 12px', color: 'var(--muted)', fontSize: 12 }}>{u.created_at?.split('T')[0]}</td>
