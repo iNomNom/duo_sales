@@ -5,59 +5,34 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 
 const STATUS_COLORS = { Active: '#34d399', Pending: '#fbbf24', Cancelled: '#f87171', Chargeback: '#a78bfa' };
 
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
 // ── Date Presets ──────────────────────────────────────────────────────────
 const DATE_PRESETS = [
-  {
-    label: 'Today',
-    filterMode: 'custom',
-    getRange: () => { const d = new Date().toISOString().split('T')[0]; return { from: d, to: d }; }
-  },
-  {
-    label: 'This Week',
-    filterMode: 'custom',
-    getRange: () => {
-      const now = new Date(); const day = now.getDay();
-      const diff = now.getDate() - day + (day === 0 ? -6 : 1);
-      const mon = new Date(now.setDate(diff)); const sun = new Date(mon);
-      sun.setDate(mon.getDate() + 6);
-      return { from: mon.toISOString().split('T')[0], to: sun.toISOString().split('T')[0] };
-    }
-  },
-  {
-    label: 'Sales Cycle',
-    filterMode: 'sales_cycle',
-    getRange: () => ({ from: '', to: '' })
-  },
-  {
-    label: 'This Quarter',
-    filterMode: 'custom',
-    getRange: () => {
-      const now = new Date(); const q = Math.floor(now.getMonth() / 3);
-      return { from: new Date(now.getFullYear(), q * 3, 1).toISOString().split('T')[0], to: new Date(now.getFullYear(), q * 3 + 3, 0).toISOString().split('T')[0] };
-    }
-  },
-  {
-    label: 'This Year',
-    filterMode: 'custom',
-    getRange: () => { const y = new Date().getFullYear(); return { from: `${y}-01-01`, to: `${y}-12-31` }; }
-  },
-  {
-    label: 'All Time',
-    filterMode: 'all_time',
-    getRange: () => ({ from: '', to: '' })
-  },
+  { label: 'Today', filterMode: 'custom', getRange: () => { const d = new Date().toISOString().split('T')[0]; return { from: d, to: d }; } },
+  { label: 'This Week', filterMode: 'custom', getRange: () => {
+    const now = new Date(); const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    const mon = new Date(now.setDate(diff)); const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    return { from: mon.toISOString().split('T')[0], to: sun.toISOString().split('T')[0] };
+  }},
+  { label: 'Sales Cycle', filterMode: 'sales_cycle', getRange: () => ({ from: '', to: '' }) },
+  { label: 'This Quarter', filterMode: 'custom', getRange: () => {
+    const now = new Date(); const q = Math.floor(now.getMonth() / 3);
+    return { from: new Date(now.getFullYear(), q * 3, 1).toISOString().split('T')[0], to: new Date(now.getFullYear(), q * 3 + 3, 0).toISOString().split('T')[0] };
+  }},
+  { label: 'This Year', filterMode: 'custom', getRange: () => { const y = new Date().getFullYear(); return { from: `${y}-01-01`, to: `${y}-12-31` }; } },
+  { label: 'All Time', filterMode: 'all_time', getRange: () => ({ from: '', to: '' }) },
 ];
 
-// ── KPI Card (clickable) ─────────────────────────────────────────────────
+// ── KPI Card ─────────────────────────────────────────────────────────────
 function KpiCard({ label, value, sub, color, onClick, icon }) {
   return (
-    <div
-      onClick={onClick}
-      style={{
-        background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-        padding: '18px 20px', cursor: onClick ? 'pointer' : 'default',
-        transition: 'all 0.15s', position: 'relative',
-      }}
+    <div onClick={onClick} style={{
+      background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+      padding: '18px 20px', cursor: onClick ? 'pointer' : 'default', transition: 'all 0.15s', position: 'relative',
+    }}
       onMouseEnter={e => { if (onClick) { e.currentTarget.style.borderColor = color || 'var(--accent)'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = `0 4px 12px ${color || 'var(--accent)'}22`; } }}
       onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
     >
@@ -70,16 +45,13 @@ function KpiCard({ label, value, sub, color, onClick, icon }) {
   );
 }
 
-// ── Status Pill (clickable) ──────────────────────────────────────────────
+// ── Status Pill ──────────────────────────────────────────────────────────
 function StatusPill({ status, count, bg, col, onClick }) {
   return (
-    <div
-      onClick={onClick}
-      style={{
-        background: bg, border: `1px solid ${col}40`, borderRadius: 8, padding: '10px 16px',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        cursor: 'pointer', transition: 'all 0.15s',
-      }}
+    <div onClick={onClick} style={{
+      background: bg, border: `1px solid ${col}40`, borderRadius: 8, padding: '10px 16px',
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', transition: 'all 0.15s',
+    }}
       onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = `0 2px 8px ${col}33`; }}
       onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
     >
@@ -87,6 +59,13 @@ function StatusPill({ status, count, bg, col, onClick }) {
       <span style={{ fontSize: 18, fontWeight: 600, color: col }}>{count}</span>
     </div>
   );
+}
+
+// ── Format cycle month key (YYYY-MM) to display label ────────────────────
+function formatCycleMonth(monthKey) {
+  if (!monthKey || monthKey === 'unknown') return 'Unknown Cycle';
+  const [y, m] = monthKey.split('-');
+  return `${MONTH_NAMES[parseInt(m) - 1]} ${y} Cycle`;
 }
 
 // ── Drill-Down Modal ─────────────────────────────────────────────────────
@@ -102,29 +81,18 @@ function DrillDownModal({ title, sales, agents, companies, type, onClose }) {
            (s.lane_details || '').toLowerCase().includes(q);
   });
 
-  // Group sales by cycle period
+  // Group sales by cycle month (derived from cycle_period_start)
   const groupedSales = {};
   filteredSales.forEach(s => {
-    const cycleKey = s.cycle_period_start && s.cycle_period_end
-      ? `${s.cycle_period_start}_${s.cycle_period_end}`
-      : 'unknown';
-    if (!groupedSales[cycleKey]) {
-      groupedSales[cycleKey] = {
-        periodStart: s.cycle_period_start,
-        periodEnd: s.cycle_period_end,
-        cycleFormat: s.cycle_format || '',
-        cycleStartDay: s.cycle_start_day,
-        agentNames: new Set(),
-        sales: []
-      };
+    const cycleMonth = s.cycle_period_start ? s.cycle_period_start.substring(0, 7) : 'unknown';
+    if (!groupedSales[cycleMonth]) {
+      groupedSales[cycleMonth] = { monthKey: cycleMonth, sales: [] };
     }
-    groupedSales[cycleKey].sales.push(s);
-    if (s.agent_name) groupedSales[cycleKey].agentNames.add(s.agent_name);
+    groupedSales[cycleMonth].sales.push(s);
   });
 
-  const sortedGroups = Object.values(groupedSales).sort((a, b) => {
-    return (b.periodStart || '').localeCompare(a.periodStart || '');
-  });
+  // Sort groups by month descending
+  const sortedGroups = Object.values(groupedSales).sort((a, b) => (b.monthKey || '').localeCompare(a.monthKey || ''));
 
   const totalRevenue = filteredSales.reduce((sum, s) => {
     if (s.status === 'Cancelled' || s.status === 'Chargeback') return sum;
@@ -137,18 +105,21 @@ function DrillDownModal({ title, sales, agents, companies, type, onClose }) {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  // Build cycle label with agent names
-  const getCycleLabel = (group) => {
-    const agentList = [...group.agentNames];
-    const format = group.cycleFormat || '?';
-    if (agentList.length === 0) return `Cycle (${format})`;
-    // Check if agents have different cycle formats
-    const agentLabels = agentList.map(name => {
-      const sale = group.sales.find(s => s.agent_name === name);
-      const fmt = sale?.cycle_format || format;
-      return fmt === '1-End' ? `${name} (1-End)` : `${name} (${fmt})`;
+  // Build sub-info for a group: show each unique cycle format with agent names and date range
+  const getGroupSubInfo = (group) => {
+    const formatGroups = {};
+    group.sales.forEach(s => {
+      const fmt = s.cycle_format || '?';
+      const key = `${fmt}_${s.cycle_period_start}_${s.cycle_period_end}`;
+      if (!formatGroups[key]) {
+        formatGroups[key] = { format: fmt, start: s.cycle_period_start, end: s.cycle_period_end, agents: new Set() };
+      }
+      formatGroups[key].agents.add(s.agent_name);
     });
-    return agentLabels.join(' · ');
+    return Object.values(formatGroups).map(fg => {
+      const names = [...fg.agents].join(', ');
+      return `${names} (${fg.format}): ${formatDate(fg.start)} — ${formatDate(fg.end)}`;
+    }).join(' · ');
   };
 
   return (
@@ -157,8 +128,7 @@ function DrillDownModal({ title, sales, agents, companies, type, onClose }) {
       <div style={{
         position: 'relative', width: '90%', maxWidth: 1100, maxHeight: '85vh',
         background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14,
-        display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+        display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
       }}>
         <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div>
@@ -186,22 +156,24 @@ function DrillDownModal({ title, sales, agents, companies, type, onClose }) {
               ) : (
                 <>
                   {sortedGroups.map(group => (
-                    <div key={`${group.periodStart}_${group.periodEnd}`} style={{ marginBottom: 20 }}>
+                    <div key={group.monthKey} style={{ marginBottom: 20 }}>
                       <div style={{
                         background: 'rgba(79,142,247,0.08)', border: '1px solid rgba(79,142,247,0.2)',
-                        borderRadius: 8, padding: '8px 14px', marginBottom: 8,
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        borderRadius: 8, padding: '8px 14px', marginBottom: 4,
                         position: 'sticky', top: 0, zIndex: 1,
                       }}>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)' }}>
-                          📅 {formatDate(group.periodStart)} — {formatDate(group.periodEnd)}
-                        </span>
-                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                          {getCycleLabel(group)} · {group.sales.length} sales · Net: ${group.sales.reduce((sum, s) => {
-                            if (s.status === 'Cancelled' || s.status === 'Chargeback') return sum;
-                            return sum + (Number(s.amount) || 0);
-                          }, 0).toLocaleString()}
-                        </span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>
+                            📅 {formatCycleMonth(group.monthKey)}
+                          </span>
+                          <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+                            {group.sales.length} sales · Net: ${group.sales.reduce((sum, s) => {
+                              if (s.status === 'Cancelled' || s.status === 'Chargeback') return sum;
+                              return sum + (Number(s.amount) || 0);
+                            }, 0).toLocaleString()}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>{getGroupSubInfo(group)}</div>
                       </div>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                         <thead>
@@ -219,9 +191,7 @@ function DrillDownModal({ title, sales, agents, companies, type, onClose }) {
                               <td style={{ padding: '10px 10px', color: 'var(--text)', fontWeight: 500 }}>{s.carrier_name}</td>
                               <td style={{ padding: '10px 10px', color: 'var(--muted)' }}>{s.company_name}</td>
                               <td style={{ padding: '10px 10px', color: 'var(--muted)', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.lane_details}</td>
-                              <td style={{ padding: '10px 10px', color: s.status === 'Cancelled' || s.status === 'Chargeback' ? 'var(--red)' : 'var(--green)', fontWeight: 600 }}>
-                                ${Number(s.amount || 0).toLocaleString()}
-                              </td>
+                              <td style={{ padding: '10px 10px', color: s.status === 'Cancelled' || s.status === 'Chargeback' ? 'var(--red)' : 'var(--green)', fontWeight: 600 }}>${Number(s.amount || 0).toLocaleString()}</td>
                               <td style={{ padding: '10px 10px' }}>
                                 <span style={{ fontSize: 11, fontWeight: 500, padding: '3px 10px', borderRadius: 20, background: (STATUS_COLORS[s.status] || '#888') + '22', color: STATUS_COLORS[s.status] || 'var(--muted)' }}>{s.status}</span>
                               </td>
@@ -301,7 +271,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState({ from: '', to: '' });
   const [activePreset, setActivePreset] = useState('Sales Cycle');
-  const [filterMode, setFilterMode] = useState('sales_cycle'); // 'sales_cycle' | 'all_time' | 'custom'
+  const [filterMode, setFilterMode] = useState('sales_cycle');
   const [drillDown, setDrillDown] = useState(null);
   const [drillDownSales, setDrillDownSales] = useState([]);
   const [drillDownLoading, setDrillDownLoading] = useState(false);
@@ -310,15 +280,9 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const params = {};
-      if (filterMode === 'all_time') {
-        params.filter = 'all_time';
-      } else if (filterMode === 'sales_cycle') {
-        params.filter = 'sales_cycle';
-      } else {
-        // Custom date range
-        if (range.from) params.from = range.from;
-        if (range.to) params.to = range.to;
-      }
+      if (filterMode === 'all_time') { params.filter = 'all_time'; }
+      else if (filterMode === 'sales_cycle') { params.filter = 'sales_cycle'; }
+      else { if (range.from) params.from = range.from; if (range.to) params.to = range.to; }
       const res = await axios.get('/api/analytics/dashboard', { params });
       setData(res.data);
     } catch { /* ignore */ }
@@ -327,41 +291,27 @@ export default function Dashboard() {
 
   useEffect(() => { load(); }, [load]);
 
-  const applyPreset = (preset) => {
-    setActivePreset(preset.label);
-    setFilterMode(preset.filterMode);
-    setRange(preset.getRange());
-  };
+  const applyPreset = (preset) => { setActivePreset(preset.label); setFilterMode(preset.filterMode); setRange(preset.getRange()); };
+  const clearDates = () => { setActivePreset('Sales Cycle'); setFilterMode('sales_cycle'); setRange({ from: '', to: '' }); };
 
-  const clearDates = () => {
-    setActivePreset('Sales Cycle');
-    setFilterMode('sales_cycle');
-    setRange({ from: '', to: '' });
-  };
-
-  // Fetch filtered sales for drill-down — properly handles all filter modes
   const openDrillDown = async (title, type, filterParams = {}) => {
     setDrillDown({ title, type, filterParams });
     if (type === 'sales') {
       setDrillDownLoading(true);
       try {
         const params = { limit: 5000, ...filterParams };
-
         if (filterMode === 'all_time') {
-          // All Time: no date filter, just status/agent if any
+          // No date filter
         } else if (filterMode === 'sales_cycle') {
-          // Sales Cycle: pass broad date range covering all agents' display periods
-          // then filter client-side by full cycle period
           if (data?.salesPeriod?.agentPeriods) {
-            const allStarts = data.salesPeriod.agentPeriods.map(ap => ap.periodStart || ap.fullPeriodStart).filter(Boolean);
-            const allEnds = data.salesPeriod.agentPeriods.map(ap => ap.periodEnd || ap.fullPeriodEnd).filter(Boolean);
+            const allStarts = data.salesPeriod.agentPeriods.map(ap => ap.fullPeriodStart).filter(Boolean);
+            const allEnds = data.salesPeriod.agentPeriods.map(ap => ap.fullPeriodEnd).filter(Boolean);
             if (allStarts.length && allEnds.length) {
               params.from = allStarts.reduce((a, b) => a < b ? a : b);
               params.to = allEnds.reduce((a, b) => a > b ? a : b);
             }
           }
         } else {
-          // Custom date range: apply the same date range
           if (range.from) params.from = range.from;
           if (range.to) params.to = range.to;
         }
@@ -369,31 +319,20 @@ export default function Dashboard() {
         const res = await axios.get('/api/sales', { params });
         let sales = res.data.sales || [];
 
-        // In Sales Cycle mode, filter to only show sales within each agent's FULL cycle period
-        // (display period end = today, but cycle_period on sales uses full period end)
+        // In Sales Cycle mode, filter to only show sales within each agent's full cycle period
         if (filterMode === 'sales_cycle' && data?.salesPeriod?.agentPeriods) {
           const agentFullPeriods = {};
           data.salesPeriod.agentPeriods.forEach(ap => {
-            // Use fullPeriodStart/fullPeriodEnd which match the cycle_period on sales records
-            agentFullPeriods[ap.agent_name] = {
-              start: ap.fullPeriodStart,
-              end: ap.fullPeriodEnd
-            };
+            agentFullPeriods[ap.agent_name] = { start: ap.fullPeriodStart, end: ap.fullPeriodEnd };
           });
-
           sales = sales.filter(s => {
-            const fullPeriod = agentFullPeriods[s.agent_name];
-            if (!fullPeriod) return true;
-            // Match sale's cycle period to agent's full cycle period
-            return s.cycle_period_start === fullPeriod.start && s.cycle_period_end === fullPeriod.end;
+            const fp = agentFullPeriods[s.agent_name];
+            if (!fp) return true;
+            return s.cycle_period_start === fp.start && s.cycle_period_end === fp.end;
           });
         }
-
         setDrillDownSales(sales);
-      } catch (err) {
-        console.error('Drill-down fetch error:', err);
-        setDrillDownSales([]);
-      }
+      } catch { setDrillDownSales([]); }
       setDrillDownLoading(false);
     }
   };
@@ -403,7 +342,6 @@ export default function Dashboard() {
 
   const { totals, monthly, agents, companies, statusBreakdown, recent, agentCount, companyCount, salesPeriod } = data;
   const fmt = v => '$' + Number(v || 0).toLocaleString();
-
   const pieData = statusBreakdown.map(s => ({ name: s.status, value: s.count }));
 
   const formatDate = (d) => {
@@ -412,26 +350,13 @@ export default function Dashboard() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  // Build period label
   let periodLabel;
-  if (filterMode === 'all_time') {
-    periodLabel = 'All Time';
-  } else if (salesPeriod?.filterMode === 'sales_cycle') {
-    const activePeriods = salesPeriod.agentPeriods || [];
-    const hasAnyActive = activePeriods.some(ap => ap.isCurrentCycleActive);
-    const hasAnyInactive = activePeriods.some(ap => !ap.isCurrentCycleActive);
-    if (hasAnyActive && hasAnyInactive) {
-      periodLabel = 'Mixed Cycle Periods (see per-agent details below)';
-    } else if (hasAnyActive) {
-      periodLabel = 'Current Cycle (in progress)';
-    } else {
-      periodLabel = 'Previous Completed Cycle';
-    }
-  } else if (range.from && range.to) {
-    periodLabel = `${formatDate(range.from)} — ${formatDate(range.to)}`;
-  } else {
-    periodLabel = 'Custom Period';
-  }
+  if (filterMode === 'all_time') { periodLabel = 'All Time'; }
+  else if (salesPeriod?.filterMode === 'sales_cycle') {
+    const hasAnyActive = (salesPeriod.agentPeriods || []).some(ap => ap.isCurrentCycleActive);
+    periodLabel = hasAnyActive ? 'Current Cycle (in progress)' : 'Previous Completed Cycle';
+  } else if (range.from && range.to) { periodLabel = `${formatDate(range.from)} — ${formatDate(range.to)}`; }
+  else { periodLabel = 'Custom Period'; }
 
   return (
     <div style={{ padding: 28, maxWidth: 1200 }}>
@@ -439,25 +364,16 @@ export default function Dashboard() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 600, color: 'var(--text)', margin: 0 }}>Sales Dashboard</h1>
-          <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>
-            Duo Enterprizes LLC — {periodLabel}
-          </p>
+          <p style={{ color: 'var(--muted)', fontSize: 13, marginTop: 4 }}>Duo Enterprizes LLC — {periodLabel}</p>
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
           {DATE_PRESETS.map(preset => (
-            <button
-              key={preset.label}
-              onClick={() => applyPreset(preset)}
-              style={{
-                padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 500,
-                cursor: 'pointer', transition: 'all 0.15s',
-                background: activePreset === preset.label ? 'var(--accent)' : 'transparent',
-                border: activePreset === preset.label ? '1px solid var(--accent)' : '1px solid var(--border2)',
-                color: activePreset === preset.label ? '#fff' : 'var(--muted)',
-              }}
-            >
-              {preset.label}
-            </button>
+            <button key={preset.label} onClick={() => applyPreset(preset)} style={{
+              padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s',
+              background: activePreset === preset.label ? 'var(--accent)' : 'transparent',
+              border: activePreset === preset.label ? '1px solid var(--accent)' : '1px solid var(--border2)',
+              color: activePreset === preset.label ? '#fff' : 'var(--muted)',
+            }}>{preset.label}</button>
           ))}
           <span style={{ color: 'var(--border)', fontSize: 12 }}>|</span>
           <input type="date" value={range.from} onChange={e => { setRange(r => ({ ...r, from: e.target.value })); setActivePreset(null); setFilterMode('custom'); }}
@@ -473,17 +389,14 @@ export default function Dashboard() {
       {filterMode === 'sales_cycle' && salesPeriod?.agentPeriods && (
         <div style={{
           background: 'rgba(79,142,247,0.08)', border: '1px solid rgba(79,142,247,0.2)',
-          borderRadius: 10, padding: '10px 16px', marginBottom: 16,
-          display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap'
+          borderRadius: 10, padding: '10px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap'
         }}>
           <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500 }}>Sales Cycles:</span>
           {salesPeriod.agentPeriods.map(ap => (
             <span key={ap.agent_name} style={{
-              fontSize: 11,
-              color: ap.isCurrentCycleActive ? '#34d399' : 'var(--muted)',
+              fontSize: 11, color: ap.isCurrentCycleActive ? '#34d399' : 'var(--muted)',
               background: ap.isCurrentCycleActive ? 'rgba(52,211,153,0.1)' : 'var(--bg3)',
-              borderRadius: 6, padding: '4px 8px',
-              border: ap.isCurrentCycleActive ? '1px solid rgba(52,211,153,0.2)' : 'none',
+              borderRadius: 6, padding: '4px 8px', border: ap.isCurrentCycleActive ? '1px solid rgba(52,211,153,0.2)' : 'none',
             }}>
               {ap.agent_name} ({ap.cycle_format || '?'}): {formatDate(ap.periodStart)} — {formatDate(ap.periodEnd)}
               {ap.isCurrentCycleActive ? ' ● active' : ' ○ prev. cycle'}
@@ -494,38 +407,26 @@ export default function Dashboard() {
 
       {/* KPI Cards — Row 1 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 14 }}>
-        <KpiCard label="Total Sales" value={totals.total_sales} sub={fmt(totals.total_revenue) + ' net revenue'} color="var(--text)" icon="📊"
-          onClick={() => openDrillDown('All Sales', 'sales')} />
-        <KpiCard label="Net Revenue" value={fmt(totals.total_revenue)} sub={`${totals.total_sales} total sales · Excl. Cancelled/Chargeback`} color="var(--accent)" icon="💰"
-          onClick={() => openDrillDown('Revenue Details', 'sales')} />
-        <KpiCard label="Total Agents" value={agentCount || 0} sub="Registered agents" color="var(--accent2)" icon="👥"
-          onClick={() => setDrillDown({ title: 'All Agents', type: 'agents' })} />
+        <KpiCard label="Total Sales" value={totals.total_sales} sub={fmt(totals.total_revenue) + ' net revenue'} color="var(--text)" icon="📊" onClick={() => openDrillDown('All Sales', 'sales')} />
+        <KpiCard label="Net Revenue" value={fmt(totals.total_revenue)} sub={`${totals.total_sales} total sales · Excl. Cancelled/Chargeback`} color="var(--accent)" icon="💰" onClick={() => openDrillDown('Revenue Details', 'sales')} />
+        <KpiCard label="Total Agents" value={agentCount || 0} sub="Registered agents" color="var(--accent2)" icon="👥" onClick={() => setDrillDown({ title: 'All Agents', type: 'agents' })} />
       </div>
 
       {/* KPI Cards — Row 2 */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 14, marginBottom: 20 }}>
-        <KpiCard label="Active Sales" value={totals.active} sub="Currently active" color="var(--green)" icon="✓"
-          onClick={() => openDrillDown('Active Sales', 'sales', { status: 'Active' })} />
-        <KpiCard label="Pending Sales" value={totals.pending} sub="Awaiting confirmation" color="var(--yellow)" icon="⏳"
-          onClick={() => openDrillDown('Pending Sales', 'sales', { status: 'Pending' })} />
-        <KpiCard label="Cancelled" value={totals.cancelled} sub="Cancelled deals" color="var(--red)" icon="✕"
-          onClick={() => openDrillDown('Cancelled Sales', 'sales', { status: 'Cancelled' })} />
-        <KpiCard label="Chargebacks" value={totals.chargebacks} sub={fmt(totals.chargeback_amount) + ' lost'} color="var(--purple)" icon="↩"
-          onClick={() => openDrillDown('Chargeback Sales', 'sales', { status: 'Chargeback' })} />
-        <KpiCard label="Companies" value={companyCount || 0} sub="Unique companies" color="#4f8ef7" icon="🏢"
-          onClick={() => setDrillDown({ title: 'All Companies', type: 'companies' })} />
+        <KpiCard label="Active Sales" value={totals.active} sub="Currently active" color="var(--green)" icon="✓" onClick={() => openDrillDown('Active Sales', 'sales', { status: 'Active' })} />
+        <KpiCard label="Pending Sales" value={totals.pending} sub="Awaiting confirmation" color="var(--yellow)" icon="⏳" onClick={() => openDrillDown('Pending Sales', 'sales', { status: 'Pending' })} />
+        <KpiCard label="Cancelled" value={totals.cancelled} sub="Cancelled deals" color="var(--red)" icon="✕" onClick={() => openDrillDown('Cancelled Sales', 'sales', { status: 'Cancelled' })} />
+        <KpiCard label="Chargebacks" value={totals.chargebacks} sub={fmt(totals.chargeback_amount) + ' lost'} color="var(--purple)" icon="↩" onClick={() => openDrillDown('Chargeback Sales', 'sales', { status: 'Chargeback' })} />
+        <KpiCard label="Companies" value={companyCount || 0} sub="Unique companies" color="#4f8ef7" icon="🏢" onClick={() => setDrillDown({ title: 'All Companies', type: 'companies' })} />
       </div>
 
       {/* Status pills */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 24 }}>
-        <StatusPill status="Active" count={totals.active} bg="#34d39922" col="#34d399"
-          onClick={() => openDrillDown('Active Sales', 'sales', { status: 'Active' })} />
-        <StatusPill status="Pending" count={totals.pending} bg="#fbbf2422" col="#fbbf24"
-          onClick={() => openDrillDown('Pending Sales', 'sales', { status: 'Pending' })} />
-        <StatusPill status="Cancelled" count={totals.cancelled} bg="#f8717122" col="#f87171"
-          onClick={() => openDrillDown('Cancelled Sales', 'sales', { status: 'Cancelled' })} />
-        <StatusPill status="Chargeback" count={totals.chargebacks} bg="#a78bfa22" col="#a78bfa"
-          onClick={() => openDrillDown('Chargeback Sales', 'sales', { status: 'Chargeback' })} />
+        <StatusPill status="Active" count={totals.active} bg="#34d39922" col="#34d399" onClick={() => openDrillDown('Active Sales', 'sales', { status: 'Active' })} />
+        <StatusPill status="Pending" count={totals.pending} bg="#fbbf2422" col="#fbbf24" onClick={() => openDrillDown('Pending Sales', 'sales', { status: 'Pending' })} />
+        <StatusPill status="Cancelled" count={totals.cancelled} bg="#f8717122" col="#f87171" onClick={() => openDrillDown('Cancelled Sales', 'sales', { status: 'Cancelled' })} />
+        <StatusPill status="Chargeback" count={totals.chargebacks} bg="#a78bfa22" col="#a78bfa" onClick={() => openDrillDown('Chargeback Sales', 'sales', { status: 'Chargeback' })} />
       </div>
 
       {/* Charts row */}
@@ -543,19 +444,15 @@ export default function Dashboard() {
             </BarChart>
           </ResponsiveContainer>
         </div>
-
         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 20 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Deal Breakdown</div>
           <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>By status</div>
           {pieData.length > 0 ? (
             <>
               <ResponsiveContainer width="100%" height={140}>
-                <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={65} dataKey="value">
-                    {pieData.map((entry, i) => <Cell key={i} fill={STATUS_COLORS[entry.name] || '#4f8ef7'} />)}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: '#1a1d28', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 12 }} />
-                </PieChart>
+                <PieChart><Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={65} dataKey="value">
+                  {pieData.map((entry, i) => <Cell key={i} fill={STATUS_COLORS[entry.name] || '#4f8ef7'} />)}
+                </Pie><Tooltip contentStyle={{ background: '#1a1d28', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, fontSize: 12 }} /></PieChart>
               </ResponsiveContainer>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
                 {pieData.map(d => (
@@ -581,18 +478,12 @@ export default function Dashboard() {
           {agents.length === 0 ? <p style={{ color: 'var(--muted)', fontSize: 13 }}>No data yet</p> : agents.map((a, i) => (
             <div key={a.agent_name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < agents.length - 1 ? '1px solid var(--border)' : 'none' }}>
               <div style={{ fontSize: 11, color: 'var(--muted)', width: 16, textAlign: 'center', fontWeight: 600 }}>#{i + 1}</div>
-              <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--accent2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#fff', flexShrink: 0 }}>
-                {a.agent_name?.[0]?.toUpperCase()}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{a.agent_name}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)' }}>{a.sales_count} deals</div>
-              </div>
+              <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--accent2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#fff', flexShrink: 0 }}>{a.agent_name?.[0]?.toUpperCase()}</div>
+              <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{a.agent_name}</div><div style={{ fontSize: 11, color: 'var(--muted)' }}>{a.sales_count} deals</div></div>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--green)' }}>{fmt(a.revenue)}</div>
             </div>
           ))}
         </div>
-
         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 20 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Top Companies</div>
@@ -601,13 +492,8 @@ export default function Dashboard() {
           {companies.length === 0 ? <p style={{ color: 'var(--muted)', fontSize: 13 }}>No data yet</p> : companies.map((c, i) => (
             <div key={c.company_name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < companies.length - 1 ? '1px solid var(--border)' : 'none' }}>
               <div style={{ fontSize: 11, color: 'var(--muted)', width: 16, fontWeight: 600 }}>#{i + 1}</div>
-              <div style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(79,142,247,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: 'var(--accent)', flexShrink: 0 }}>
-                {c.company_name?.[0]?.toUpperCase()}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{c.company_name}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)' }}>{c.sales_count} deals · {c.active} active</div>
-              </div>
+              <div style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(79,142,247,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: 'var(--accent)', flexShrink: 0 }}>{c.company_name?.[0]?.toUpperCase()}</div>
+              <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)' }}>{c.company_name}</div><div style={{ fontSize: 11, color: 'var(--muted)' }}>{c.sales_count} deals · {c.active} active</div></div>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>{fmt(c.revenue)}</div>
             </div>
           ))}
@@ -620,49 +506,27 @@ export default function Dashboard() {
           <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Recent Sales</div>
           <button onClick={() => openDrillDown('All Sales', 'sales')} style={{ padding: '4px 10px', background: 'transparent', border: '1px solid var(--border2)', borderRadius: 6, color: 'var(--muted)', fontSize: 11, cursor: 'pointer' }}>View All →</button>
         </div>
-        {recent.length === 0 ? <p style={{ color: 'var(--muted)', fontSize: 13 }}>No sales in this period. Add your first sale!</p> : (
+        {recent.length === 0 ? <p style={{ color: 'var(--muted)', fontSize: 13 }}>No sales in this period.</p> : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                {['Date', 'Agent', 'Carrier', 'Company', 'Amount', 'Status'].map(h => (
-                  <th key={h} style={{ textAlign: 'left', padding: '6px 10px', fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
+            <thead><tr style={{ borderBottom: '1px solid var(--border)' }}>
+              {['Date', 'Agent', 'Carrier', 'Company', 'Amount', 'Status'].map(h => (<th key={h} style={{ textAlign: 'left', padding: '6px 10px', fontSize: 11, fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{h}</th>))}
+            </tr></thead>
             <tbody>
-              {recent.map(s => (
-                <tr key={s.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '10px 10px', color: 'var(--muted)', fontSize: 12 }}>{s.date}</td>
-                  <td style={{ padding: '10px 10px', color: 'var(--text)' }}>{s.agent_name}</td>
-                  <td style={{ padding: '10px 10px', color: 'var(--text)' }}>{s.carrier_name}</td>
-                  <td style={{ padding: '10px 10px', color: 'var(--text)' }}>{s.company_name}</td>
-                  <td style={{ padding: '10px 10px', color: s.status === 'Cancelled' || s.status === 'Chargeback' ? 'var(--red)' : 'var(--green)', fontWeight: 600 }}>
-                    ${Number(s.amount || 0).toLocaleString()}
-                  </td>
-                  <td style={{ padding: '10px 10px' }}>
-                    <span style={{ fontSize: 11, fontWeight: 500, padding: '3px 10px', borderRadius: 20, background: s.status === 'Active' ? '#34d39922' : s.status === 'Pending' ? '#fbbf2422' : s.status === 'Cancelled' ? '#f8717122' : '#a78bfa22', color: STATUS_COLORS[s.status] || 'var(--muted)' }}>
-                      {s.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {recent.map(s => (<tr key={s.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                <td style={{ padding: '10px 10px', color: 'var(--muted)', fontSize: 12 }}>{s.date}</td>
+                <td style={{ padding: '10px 10px', color: 'var(--text)' }}>{s.agent_name}</td>
+                <td style={{ padding: '10px 10px', color: 'var(--text)' }}>{s.carrier_name}</td>
+                <td style={{ padding: '10px 10px', color: 'var(--text)' }}>{s.company_name}</td>
+                <td style={{ padding: '10px 10px', color: s.status === 'Cancelled' || s.status === 'Chargeback' ? 'var(--red)' : 'var(--green)', fontWeight: 600 }}>${Number(s.amount || 0).toLocaleString()}</td>
+                <td style={{ padding: '10px 10px' }}><span style={{ fontSize: 11, fontWeight: 500, padding: '3px 10px', borderRadius: 20, background: s.status === 'Active' ? '#34d39922' : s.status === 'Pending' ? '#fbbf2422' : s.status === 'Cancelled' ? '#f8717122' : '#a78bfa22', color: STATUS_COLORS[s.status] || 'var(--muted)' }}>{s.status}</span></td>
+              </tr>))}
             </tbody>
           </table>
         )}
       </div>
 
       {/* Drill-Down Modal */}
-      {drillDown && (
-        <DrillDownModal
-          title={drillDown.title}
-          type={drillDown.type}
-          sales={drillDownSales}
-          agents={agents}
-          companies={companies}
-          onClose={() => { setDrillDown(null); setDrillDownSales([]); }}
-        />
-      )}
-
+      {drillDown && <DrillDownModal title={drillDown.title} type={drillDown.type} sales={drillDownSales} agents={agents} companies={companies} onClose={() => { setDrillDown(null); setDrillDownSales([]); }} />}
       {drillDown && drillDownLoading && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)' }}>
           <div style={{ background: 'var(--bg2)', padding: '16px 24px', borderRadius: 8, color: 'var(--muted)', fontSize: 13 }}>Loading details...</div>

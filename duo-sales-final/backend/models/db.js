@@ -121,37 +121,86 @@ function getSalesPeriod(cycleStartDay, referenceDate) {
   return { periodStart: fmt(periodStart), periodEnd: fmt(periodEnd), isCurrentCycleActive };
 }
 
-// ── Helper: Get the display period for an agent based on cursor logic ──────
-// Cursor logic: Only show revenue when the current date has reached the agent's
-// cycle start day. If the cycle hasn't started yet this month, show the
-// PREVIOUS cycle's completed data. If the cycle HAS started, show the current
-// cycle's partial data (from cycle start to today).
+// ── Helper: Get the display period for an agent based on universal cursor logic ──
+// CURSOR_DAY = 8: The universal day when ALL cycles reset simultaneously.
+// Before the 8th: Show previous cycle for ALL agents.
+//   - Agents whose cycle started this month (e.g., Ahsan cycle 1): show their
+//     PREVIOUS completed cycle (their current month sales are hidden until the 8th).
+//   - Agents whose cycle hasn't started yet (e.g., cycle 8): show their ongoing
+//     cycle from last month's start up to today.
+// On/after the 8th: Show current cycle for ALL agents.
+//   - Ahsan (1-End): shows from the 1st of the month (including 1st-7th that were hidden).
+//   - Others (8-7): shows from the 8th.
+const CURSOR_DAY = 8;
+
 function getDisplayPeriod(cycleStartDay, referenceDate) {
   const ref = referenceDate ? new Date(referenceDate) : new Date();
   const day = ref.getDate();
   const month = ref.getMonth();
   const year = ref.getFullYear();
+  const fmt = d => d.toISOString().split('T')[0];
 
-  if (day >= cycleStartDay) {
-    // Cycle has started this month → show current cycle data from start to today
+  if (day >= CURSOR_DAY) {
+    // ── After cursor: Current cycle is active for ALL agents ────────────────
     const periodStart = new Date(year, month, cycleStartDay);
     const today = new Date(year, month, day);
-    const fmt = d => d.toISOString().split('T')[0];
+
+    // Full cycle boundaries for matching sales records
+    let fps, fpe;
+    if (cycleStartDay === 1) {
+      fps = new Date(year, month, 1);
+      fpe = new Date(year, month + 1, 0); // last day of month
+    } else {
+      fps = new Date(year, month, cycleStartDay);
+      fpe = new Date(year, month + 1, cycleStartDay - 1);
+    }
+
     return {
       periodStart: fmt(periodStart),
       periodEnd: fmt(today),
       isCurrentCycleActive: true,
-      cycleLabel: 'Current Cycle (in progress)'
+      cycleLabel: 'Current Cycle (in progress)',
+      fullPeriodStart: fmt(fps),
+      fullPeriodEnd: fmt(fpe)
     };
   } else {
-    // Cycle hasn't started yet this month → show previous full cycle
-    const prevPeriod = getSalesPeriod(cycleStartDay, ref);
-    return {
-      periodStart: prevPeriod.periodStart,
-      periodEnd: prevPeriod.periodEnd,
-      isCurrentCycleActive: false,
-      cycleLabel: 'Previous Cycle (completed)'
-    };
+    // ── Before cursor: Show previous cycle for ALL agents ───────────────────
+    if (day >= cycleStartDay) {
+      // Agent's cycle HAS started this month (e.g., Ahsan cycle 1 on June 5)
+      // but we DELAY showing it until the 8th → show their PREVIOUS completed cycle
+      if (cycleStartDay === 1) {
+        // Previous calendar month
+        return {
+          periodStart: fmt(new Date(year, month - 1, 1)),
+          periodEnd: fmt(new Date(year, month, 0)),
+          isCurrentCycleActive: false,
+          cycleLabel: 'Previous Cycle (completed)',
+          fullPeriodStart: fmt(new Date(year, month - 1, 1)),
+          fullPeriodEnd: fmt(new Date(year, month, 0))
+        };
+      } else {
+        // Previous cycle: started (month-1) cycleStartDay, ended this month (cycleStartDay-1)
+        return {
+          periodStart: fmt(new Date(year, month - 1, cycleStartDay)),
+          periodEnd: fmt(new Date(year, month, cycleStartDay - 1)),
+          isCurrentCycleActive: false,
+          cycleLabel: 'Previous Cycle (completed)',
+          fullPeriodStart: fmt(new Date(year, month - 1, cycleStartDay)),
+          fullPeriodEnd: fmt(new Date(year, month, cycleStartDay - 1))
+        };
+      }
+    } else {
+      // Agent's cycle hasn't started this month yet (e.g., cycle 8 on June 5)
+      // Show their ongoing cycle from last month start to today
+      return {
+        periodStart: fmt(new Date(year, month - 1, cycleStartDay)),
+        periodEnd: fmt(new Date(year, month, day)),
+        isCurrentCycleActive: false,
+        cycleLabel: 'Previous Cycle (in progress)',
+        fullPeriodStart: fmt(new Date(year, month - 1, cycleStartDay)),
+        fullPeriodEnd: fmt(new Date(year, month, cycleStartDay - 1))
+      };
+    }
   }
 }
 

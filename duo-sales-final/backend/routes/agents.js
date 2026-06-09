@@ -2,26 +2,6 @@ const router = require('express').Router();
 const { db, getSalesPeriod, getDisplayPeriod, getAgentSalesCycles } = require('../models/db');
 const auth = require('../middleware/auth');
 
-// Helper: Determine which cycle period a sale date falls into for a given agent
-function getCyclePeriodForDate(cycleStartDay, saleDate) {
-  const d = new Date(saleDate + 'T00:00:00');
-  const day = d.getDate();
-  const month = d.getMonth();
-  const year = d.getFullYear();
-
-  if (day >= cycleStartDay) {
-    const periodStart = new Date(year, month, cycleStartDay);
-    const periodEnd = new Date(year, month + 1, cycleStartDay - 1);
-    const fmt = dt => dt.toISOString().split('T')[0];
-    return { periodStart: fmt(periodStart), periodEnd: fmt(periodEnd) };
-  } else {
-    const periodStart = new Date(year, month - 1, cycleStartDay);
-    const periodEnd = new Date(year, month, cycleStartDay - 1);
-    const fmt = dt => dt.toISOString().split('T')[0];
-    return { periodStart: fmt(periodStart), periodEnd: fmt(periodEnd) };
-  }
-}
-
 router.get('/', auth, (req, res) => {
   const { from, to, filter } = req.query;
 
@@ -37,9 +17,9 @@ router.get('/', auth, (req, res) => {
 
     if (filter === 'monthly') {
       // Use cursor-based display period
-      const displayPeriod = getDisplayPeriod(cycleStart, new Date());
-      effectiveFrom = displayPeriod.periodStart;
-      effectiveTo = displayPeriod.periodEnd;
+      const dp = getDisplayPeriod(cycleStart, new Date());
+      effectiveFrom = dp.periodStart;
+      effectiveTo = dp.periodEnd;
     } else if (filter === 'custom' && from && to) {
       effectiveFrom = from;
       effectiveTo = to;
@@ -67,8 +47,7 @@ router.get('/', auth, (req, res) => {
     `).get(ac.name, ...params);
 
     // Get display period info with cursor logic
-    const displayPeriod = getDisplayPeriod(cycleStart, new Date());
-    const fullPeriod = getSalesPeriod(cycleStart, new Date());
+    const dp = getDisplayPeriod(cycleStart, new Date());
 
     return {
       id: ac.name,
@@ -83,10 +62,15 @@ router.get('/', auth, (req, res) => {
       chargeback_amount: row?.chargeback_amount || 0,
       sales_cycle_start: cycleStart,
       cycle_format: cycleStart === 1 ? '1-End' : `${cycleStart}-${cycleStart - 1}`,
-      sales_period: displayPeriod,
-      full_period: { periodStart: fullPeriod.periodStart, periodEnd: fullPeriod.periodEnd },
-      is_current_cycle_active: displayPeriod.isCurrentCycleActive,
-      cycle_label: displayPeriod.cycleLabel
+      sales_period: {
+        periodStart: dp.periodStart,
+        periodEnd: dp.periodEnd,
+        isCurrentCycleActive: dp.isCurrentCycleActive,
+        cycleLabel: dp.cycleLabel
+      },
+      full_period: { periodStart: dp.fullPeriodStart, periodEnd: dp.fullPeriodEnd },
+      is_current_cycle_active: dp.isCurrentCycleActive,
+      cycle_label: dp.cycleLabel
     };
   });
 
