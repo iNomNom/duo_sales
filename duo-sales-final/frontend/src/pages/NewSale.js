@@ -89,7 +89,7 @@ export default function NewSale() {
                 readOnly={user?.role === 'agent'} required style={{ ...INPUT, opacity: user?.role === 'agent' ? 0.7 : 1 }} placeholder="Agent name" />
             </Field>
             <Field label="Status">
-              <select value={form.status} onChange={e => set('status', e.target.value)} style={INPUT}>
+              <select value={form.status} onChange={e => set('status', e.target.value)} style={{ ...INPUT, opacity: user?.role === 'agent' ? 0.6 : 1 }} disabled={user?.role === 'agent'}>
                 <option>Pending</option>
                 <option>Active</option>
                 <option>Cancelled</option>

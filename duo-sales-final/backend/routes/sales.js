@@ -165,6 +165,9 @@ router.post('/', auth, (req, res) => {
     address, acc_type, status, closed_by, notes
   } = req.body;
 
+  // Ensure only admins can set an initial status; agents' created sales are always 'Pending'
+  const finalStatus = req.user.role === 'admin' ? (status || 'Pending') : 'Pending';
+
   const result = db.prepare(`
     INSERT INTO sales (
       date, agent_name, carrier_name, email, lane_details, amount,
@@ -174,7 +177,7 @@ router.post('/', auth, (req, res) => {
   `).run(
     date, agent_name || req.user.name, carrier_name, email, lane_details,
     parseFloat(amount) || 0, purpose, lane_start_date, truck, phone_number,
-    company_name, address, acc_type, status || 'Pending', closed_by, notes,
+    company_name, address, acc_type, finalStatus, closed_by, notes,
     req.user.id
   );
 
