@@ -9,7 +9,7 @@ router.get('/', auth, (req, res) => {
   const agentCycles = getAgentSalesCycles();
 
   const results = agentCycles.map(ac => {
-    const cycleStart = ac.sales_cycle_start || 8;
+    const cycleStart = ac.sales_cycle_start || 1;
 
     // Determine date range based on filter
     let effectiveFrom = null;

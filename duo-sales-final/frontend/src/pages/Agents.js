@@ -277,7 +277,7 @@ export default function Agents() {
   const addUser = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('/api/auth/register', { ...form, sales_cycle_start: 8 }); // Always default to 8
+      await axios.post('/api/auth/register', { ...form, sales_cycle_start: 1 }); // Default to month-end cycle
       setMsg('User created successfully!');
       setShowAdd(false);
       setForm({ name: '', email: '', password: '', role: 'agent' });
@@ -356,7 +356,7 @@ export default function Agents() {
                   <option value="agent">Agent</option><option value="manager">Manager</option><option value="admin">Admin</option>
                 </select>
               </div>
-              {/* No sales_cycle_start field — hidden, defaults to 8 */}
+              {/* No sales_cycle_start field — hidden, defaults to 1 */}
               <button type="submit" style={{ padding: '8px 20px', background: 'linear-gradient(135deg,#4f8ef7,#6c63ff)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>Create</button>
             </div>
           </form>
@@ -394,7 +394,7 @@ export default function Agents() {
             {a.sales_period && (
               <div style={{ marginTop: 10, fontSize: 10, color: 'var(--muted)', background: a.is_current_cycle_active ? 'rgba(52,211,153,0.08)' : 'var(--bg3)', borderRadius: 6, padding: '6px 10px', border: a.is_current_cycle_active ? '1px solid rgba(52,211,153,0.15)' : 'none' }}>
                 <span style={{ color: a.is_current_cycle_active ? '#34d399' : 'var(--muted)' }}>
-                  {a.is_current_cycle_active ? '● Active' : '○ Prev.'} ({a.cycle_format || '8-7'})
+                  {a.is_current_cycle_active ? '● Active' : '○ Prev.'} ({a.cycle_format || '1-End'})
                 </span>: {formatDate(a.sales_period.periodStart)} — {formatDate(a.sales_period.periodEnd)}
               </div>
             )}

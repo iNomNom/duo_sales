@@ -17,7 +17,7 @@ db.exec(`
     email      TEXT UNIQUE NOT NULL,
     password   TEXT NOT NULL,
     role       TEXT NOT NULL DEFAULT 'agent',  -- admin | manager | agent
-    sales_cycle_start INTEGER DEFAULT 8,       -- Day of month when sales cycle starts (1-28)
+    sales_cycle_start INTEGER DEFAULT 1,       -- Day of month when sales cycle starts (1-28)
     created_at TEXT DEFAULT (datetime('now'))
   );
 
@@ -60,27 +60,19 @@ const hasSalesCycle = userColumns.some(col => col.name === 'sales_cycle_start');
 const hasOldBillingCycle = userColumns.some(col => col.name === 'billing_cycle_start');
 
 if (!hasSalesCycle && !hasOldBillingCycle) {
-  db.exec('ALTER TABLE users ADD COLUMN sales_cycle_start INTEGER DEFAULT 8');
+  db.exec('ALTER TABLE users ADD COLUMN sales_cycle_start INTEGER DEFAULT 1');
   console.log('Added sales_cycle_start column to users table');
 } else if (!hasSalesCycle && hasOldBillingCycle) {
   // Rename old billing_cycle_start column by copying data
-  db.exec('ALTER TABLE users ADD COLUMN sales_cycle_start INTEGER DEFAULT 8');
+  db.exec('ALTER TABLE users ADD COLUMN sales_cycle_start INTEGER DEFAULT 1');
   db.prepare('UPDATE users SET sales_cycle_start = billing_cycle_start').run();
   console.log('Migrated billing_cycle_start → sales_cycle_start');
 }
 
 // ── Migrate existing agents ────────────────────────────────────────────────
-// Set Ahsan Shadab to 1-1 cycle (check various name spellings)
-const ahsan = db.prepare("SELECT id FROM users WHERE name LIKE '%ahsan%shadab%'").get();
-if (ahsan) {
-  db.prepare('UPDATE users SET sales_cycle_start = 1 WHERE id = ?').run(ahsan.id);
-  console.log('Set Ahsan Shadab sales cycle to 1st of month');
-}
-
-// Set all other agents to 8 (default) if not set
-db.prepare("UPDATE users SET sales_cycle_start = 8 WHERE role = 'agent' AND sales_cycle_start IS NULL").run();
-// Also update any agent still on old default of 7 to new default of 8 (except Ahsan)
-db.prepare("UPDATE users SET sales_cycle_start = 8 WHERE role = 'agent' AND sales_cycle_start = 7 AND name NOT LIKE '%ahsan%shadab%'").run();
+// Align any agent still using the previous defaults to the new month-end cycle.
+db.prepare("UPDATE users SET sales_cycle_start = 1 WHERE role = 'agent' AND (sales_cycle_start IS NULL OR sales_cycle_start = 8 OR sales_cycle_start = 7)").run();
+console.log('Aligned agent sales cycles to the month-end cycle');
 
 // ── Seed admin user if none exists ─────────────────────────────────────────
 const existing = db.prepare('SELECT id FROM users WHERE role = ?').get('admin');
@@ -88,7 +80,7 @@ if (!existing) {
   const hash = bcrypt.hashSync('admin123', 10);
   db.prepare(`
     INSERT INTO users (name, email, password, role, sales_cycle_start)
-    VALUES ('Admin', 'admin@duoenterprizes.com', ?, 'admin', 8)
+    VALUES ('Admin', 'admin@duoenterprizes.com', ?, 'admin', 1)
   `).run(hash);
   console.log('Default admin created: admin@duoenterprizes.com / admin123');
 }

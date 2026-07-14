@@ -128,10 +128,10 @@ router.get('/', auth, (req, res) => {
   // Add cycle period info to each sale for grouping
   const agentCycles = getAgentSalesCycles();
   const cycleMap = {};
-  agentCycles.forEach(ac => { cycleMap[ac.name] = ac.sales_cycle_start || 8; });
+  agentCycles.forEach(ac => { cycleMap[ac.name] = ac.sales_cycle_start || 1; });
 
   const salesWithCycle = rows.map(s => {
-    const cycleStart = cycleMap[s.agent_name] || 8;
+    const cycleStart = cycleMap[s.agent_name] || 1;
     const cyclePeriod = getCyclePeriodForDate(cycleStart, s.date);
     const cycleFormat = cycleStart === 1 ? '1-End' : `${cycleStart}-${cycleStart - 1}`;
     return {

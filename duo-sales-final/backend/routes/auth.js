@@ -18,7 +18,7 @@ router.post('/login', (req, res) => {
   if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
 
   const token = jwt.sign(
-    { id: user.id, name: user.name, email: user.email, role: user.role, sales_cycle_start: user.sales_cycle_start || 8 },
+    { id: user.id, name: user.name, email: user.email, role: user.role, sales_cycle_start: user.sales_cycle_start || 1 },
     SECRET,
     { expiresIn: '7d' }
   );
@@ -27,7 +27,7 @@ router.post('/login', (req, res) => {
     user: {
       id: user.id, name: user.name, email: user.email,
       role: user.role,
-      sales_cycle_start: user.sales_cycle_start || 8
+      sales_cycle_start: user.sales_cycle_start || 1
     }
   });
 });
@@ -42,7 +42,7 @@ router.post('/register', auth, (req, res) => {
   if (exists) return res.status(400).json({ error: 'Email already registered' });
 
   const hash = bcrypt.hashSync(password, 10);
-  const cycleStart = sales_cycle_start || 8; // Default for new agents: 8th of month
+  const cycleStart = sales_cycle_start || 1; // Default for new agents: month-end cycle
   const result = db.prepare(
     'INSERT INTO users (name, email, password, role, sales_cycle_start) VALUES (?, ?, ?, ?, ?)'
   ).run(name, email.toLowerCase(), hash, role || 'agent', cycleStart);

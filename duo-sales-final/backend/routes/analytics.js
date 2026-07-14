@@ -34,7 +34,7 @@ function computeDashboardWithAgentCycles(userRole, userName) {
   const now = new Date();
 
   const agentPeriods = agentCycles.map(a => {
-    const cycleStart = a.sales_cycle_start || 8;
+    const cycleStart = a.sales_cycle_start || 1;
     const dp = getDisplayPeriod(cycleStart, now);
     return {
       name: a.name,
@@ -144,7 +144,7 @@ router.get('/dashboard', auth, (req, res) => {
   const isAllTime = filter === 'all_time';
   const isSalesCycle = !filter || filter === 'sales_cycle';
 
-  const userCycleStart = req.user.sales_cycle_start || 8;
+  const userCycleStart = req.user.sales_cycle_start || 1;
 
   // Determine effective date range for non-totals sections
   let effectiveFrom, effectiveTo;
@@ -201,7 +201,7 @@ router.get('/dashboard', auth, (req, res) => {
         agentTo = effectiveTo;
       } else {
         // Sales Cycle: cursor-based display period
-        const dp = getDisplayPeriod(ac.sales_cycle_start || 8, new Date());
+        const dp = getDisplayPeriod(ac.sales_cycle_start || 1, new Date());
         agentFrom = dp.periodStart;
         agentTo = dp.periodEnd;
       }
@@ -341,7 +341,7 @@ router.get('/dashboard', auth, (req, res) => {
   // ── Sales period info with cursor logic ────────────────────────────────
   const agentCycles = getAgentSalesCycles();
   const salesPeriods = agentCycles.map(a => {
-    const cycleStart = a.sales_cycle_start || 8;
+    const cycleStart = a.sales_cycle_start || 1;
     const dp = getDisplayPeriod(cycleStart, new Date());
     return {
       agent_name: a.name,
@@ -386,7 +386,7 @@ router.get('/agent/:name', auth, (req, res) => {
   const { from, to, filter } = req.query;
 
   const agentUser = db.prepare("SELECT sales_cycle_start FROM users WHERE name = ? AND role = 'agent'").get(name);
-  const cycleStart = agentUser?.sales_cycle_start || 8;
+  const cycleStart = agentUser?.sales_cycle_start || 1;
 
   // Determine date range
   let effectiveFrom, effectiveTo;
