@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 const SUPERADMIN_TOKEN_KEY = 'duo_superadmin_token';
@@ -12,14 +12,19 @@ export default function SuperAdmin() {
   // Admin data
   const [admins, setAdmins] = useState([]);
   const [users, setUsers] = useState([]);
-  const [tab, setTab] = useState('admins'); // 'admins' | 'all-users'
+  const [tab, setTab] = useState('admins'); // 'admins' | 'all-users' | 'sql'
   const [dataLoaded, setDataLoaded] = useState(false);
   // SQL editor
-  const [sqlText, setSqlText] = useState('SELECT * FROM users LIMIT 50');
-  const [sqlRows, setSqlRows] = useState([]);
-  const [sqlCols, setSqlCols] = useState([]);
-  const [sqlMsg, setSqlMsg] = useState('');
-  const [editableTable, setEditableTable] = useState(null); // detected table name for simple updates
+  const [tableList, setTableList] = useState([]);
+  const [selectedTable, setSelectedTable] = useState('');
+  const [tableCols, setTableCols] = useState([]);
+  const [tableRows, setTableRows] = useState([]);
+  const [tablePage, setTablePage] = useState(1);
+  const [tableLimit, setTableLimit] = useState(20);
+  const [tableTotal, setTableTotal] = useState(0);
+  const [tableLoading, setTableLoading] = useState(false);
+  const [tableMsg, setTableMsg] = useState('');
+  const [editedCells, setEditedCells] = useState({});
 
   // Password change modal
   const [pwModal, setPwModal] = useState(null); // user object
@@ -113,6 +118,60 @@ export default function SuperAdmin() {
     }
   };
 
+  const loadTableList = async () => {
+    try {
+      const res = await axios.get('/api/superadmin/sql/tables', getAuthHeader());
+      setTableList(res.data.tables);
+    } catch (err) {
+      setTableMsg(err.response?.data?.error || 'Unable to load tables');
+    }
+  };
+
+  const loadTableData = async (table, page = 1) => {
+    if (!table) return;
+    setTableLoading(true);
+    setTableMsg('');
+    try {
+      const res = await axios.get(`/api/superadmin/sql/table/${table}`, {
+        params: { page, limit: tableLimit },
+        ...getAuthHeader()
+      });
+      setSelectedTable(table);
+      setTableCols(res.data.columns);
+      setTableRows(res.data.rows);
+      setTablePage(res.data.page);
+      setTableLimit(res.data.limit);
+      setTableTotal(res.data.total);
+      setEditedCells({});
+    } catch (err) {
+      setTableRows([]);
+      setTableCols([]);
+      setTablePage(1);
+      setTableTotal(0);
+      setTableMsg(err.response?.data?.error || 'Unable to load data');
+    } finally {
+      setTableLoading(false);
+    }
+  };
+
+  const saveTableChanges = async () => {
+    const changes = Object.entries(editedCells).map(([key, value]) => {
+      const [id, column] = key.split('::');
+      return { id: Number(id), column, value };
+    });
+    if (changes.length === 0) {
+      setTableMsg('No changes to save');
+      return;
+    }
+    try {
+      const res = await axios.post(`/api/superadmin/sql/table/${selectedTable}/save`, { changes }, getAuthHeader());
+      setTableMsg(res.data.message || 'Saved successfully');
+      loadTableData(selectedTable, tablePage);
+    } catch (err) {
+      setTableMsg(err.response?.data?.error || 'Save failed');
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem(SUPERADMIN_TOKEN_KEY);
     setAuthed(false);
@@ -123,7 +182,10 @@ export default function SuperAdmin() {
 
   // Load data when authenticated
   React.useEffect(() => {
-    if (authed && !dataLoaded) loadData();
+    if (authed) {
+      if (!dataLoaded) loadData();
+      loadTableList();
+    }
   }, [authed]);
 
   const displayData = tab === 'admins' ? admins : users;
@@ -211,73 +273,84 @@ export default function SuperAdmin() {
 
       {/* SQL Runner */}
       {tab === 'sql' && (
-        <div style={{ marginBottom: 18 }}>
-          <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-            <textarea value={sqlText} onChange={e => setSqlText(e.target.value)} rows={6}
-              style={{ width: '100%', borderRadius: 8, padding: 12, background: '#0f1117', border: '1px solid #252840', color: '#e2e4eb', fontFamily: 'monospace' }} />
+        <div style={{ marginBottom: 18, display: 'grid', gridTemplateColumns: '240px 1fr', gap: 16 }}>
+          <div style={{ background: '#141728', border: '1px solid #252840', borderRadius: 16, padding: 16, minHeight: 300 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#e2e4eb' }}>Tables</h3>
+              <button onClick={() => loadTableList()} style={{ ...BTN_WARN, padding: '6px 12px', fontSize: 12 }}>Refresh</button>
+            </div>
+            <div style={{ maxHeight: 460, overflowY: 'auto' }}>
+              {tableList.map(table => (
+                <button key={table} onClick={() => loadTableData(table, 1)}
+                  style={{
+                    width: '100%', textAlign: 'left', background: table === selectedTable ? '#1f2a4d' : 'transparent', color: table === selectedTable ? '#fff' : '#c8d1ff', border: 'none', borderRadius: 10,
+                    padding: '10px 12px', marginBottom: 6, cursor: 'pointer'
+                  }}>
+                  {table}
+                </button>
+              ))}
+              {tableList.length === 0 && <div style={{ color: '#7a7f96', padding: 12 }}>No tables found.</div>}
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-            <button onClick={async () => {
-              setSqlMsg('');
-              try {
-                const res = await axios.post('/api/superadmin/sql/execute', { sql: sqlText }, getAuthHeader());
-                const rows = res.data.rows || [];
-                setSqlRows(rows);
-                setSqlCols(rows.length ? Object.keys(rows[0]) : []);
 
-                // try to detect simple table name from FROM clause for editing
-                const m = sqlText.match(/FROM\s+([a-zA-Z0-9_]+)/i);
-                if (m) setEditableTable(m[1]); else setEditableTable(null);
-              } catch (err) {
-                setSqlMsg(err.response?.data?.error || err.message || 'Query failed');
-                setSqlRows([]);
-                setSqlCols([]);
-                setEditableTable(null);
-              }
-            }} style={BTN_PRIMARY}>Run</button>
-            <button onClick={() => { setSqlRows([]); setSqlCols([]); setSqlMsg(''); }} style={{ ...BTN_WARN }}>Clear</button>
-          </div>
-          {sqlMsg && <div style={{ color: '#f87171', marginBottom: 8 }}>{sqlMsg}</div>}
-
-          <div style={{ background: '#141728', border: '1px solid #252840', borderRadius: 12, overflow: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: '#1a1d2e' }}>
-                  {sqlCols.map(c => (
-                    <th key={c} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 12, color: '#7a7f96' }}>{c}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sqlRows.map((r, ri) => (
-                  <tr key={ri} style={{ borderBottom: '1px solid #1e2136' }}>
-                    {sqlCols.map(c => (
-                      <td key={c} style={{ padding: '8px 12px', color: '#e2e4eb' }}>
-                        {editableTable && c !== 'id' ? (
-                          <input defaultValue={r[c]} onBlur={async (e) => {
-                            const newVal = e.target.value;
-                            if (String(newVal) === String(r[c])) return;
-                            try {
-                              await axios.post('/api/superadmin/sql/update-cell', { table: editableTable, id: r.id, column: c, value: newVal }, getAuthHeader());
-                              setSqlMsg('Updated successfully');
-                              // reflect locally
-                              const copy = [...sqlRows]; copy[ri] = { ...copy[ri], [c]: newVal }; setSqlRows(copy);
-                            } catch (err) {
-                              setSqlMsg(err.response?.data?.error || 'Update failed');
-                            }
-                          }} style={{ width: '100%', background: 'transparent', border: '1px solid transparent', color: '#e2e4eb' }} />
-                        ) : (
-                          <span>{String(r[c])}</span>
-                        )}
-                      </td>
+          <div style={{ background: '#141728', border: '1px solid #252840', borderRadius: 16, padding: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 16 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#e2e4eb' }}>{selectedTable || 'Select a table'}</div>
+                <div style={{ fontSize: 12, color: '#7a7f96', marginTop: 4 }}>{selectedTable ? `${tableTotal.toLocaleString()} rows` : 'Choose a table to browse data'}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button onClick={() => loadTableData(selectedTable, tablePage)} disabled={!selectedTable || tableLoading} style={BTN_WARN}>Reload</button>
+                <button onClick={saveTableChanges} disabled={!selectedTable || tableLoading || Object.keys(editedCells).length === 0} style={BTN_PRIMARY}>Save Changes</button>
+              </div>
+            </div>
+            {tableMsg && <div style={{ marginBottom: 12, color: '#f5c542' }}>{tableMsg}</div>}
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
+                <thead>
+                  <tr style={{ background: '#1a1d2e' }}>
+                    {tableCols.map(col => (
+                      <th key={col} style={{ padding: '10px 12px', textAlign: 'left', color: '#7a7f96', fontSize: 12, fontWeight: 700 }}>{col}</th>
                     ))}
                   </tr>
-                ))}
-                {sqlRows.length === 0 && (
-                  <tr><td style={{ padding: 20, color: '#7a7f96' }}>No rows</td></tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {tableRows.map(row => (
+                    <tr key={row.id} style={{ borderBottom: '1px solid #252840' }}>
+                      {tableCols.map(col => {
+                        const key = `${row.id}::${col}`;
+                        return (
+                          <td key={col} style={{ padding: '10px 12px', color: '#e2e4eb', verticalAlign: 'top' }}>
+                            {col === 'id' ? (
+                              <span style={{ color: '#7a7f96' }}>{row[col]}</span>
+                            ) : (
+                              <input
+                                type="text"
+                                defaultValue={row[col] ?? ''}
+                                onChange={e => setEditedCells(prev => ({ ...prev, [key]: e.target.value }))}
+                                style={{ width: '100%', background: '#0f1117', border: '1px solid #252840', borderRadius: 8, padding: '8px 10px', color: '#e2e4eb', fontSize: 13 }}
+                              />
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                  {selectedTable && tableRows.length === 0 && (
+                    <tr><td colSpan={tableCols.length} style={{ padding: 20, color: '#7a7f96' }}>No rows in this table.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {selectedTable && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, flexWrap: 'wrap', gap: 10 }}>
+                <div style={{ color: '#7a7f96', fontSize: 13 }}>{`Page ${tablePage} of ${Math.max(1, Math.ceil(tableTotal / tableLimit))}`}</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button onClick={() => loadTableData(selectedTable, Math.max(1, tablePage - 1))} disabled={tablePage <= 1 || tableLoading} style={{ ...BTN_WARN, padding: '8px 14px', fontSize: 12 }}>Previous</button>
+                  <button onClick={() => loadTableData(selectedTable, tablePage + 1)} disabled={tablePage >= Math.ceil(tableTotal / tableLimit) || tableLoading} style={{ ...BTN_WARN, padding: '8px 14px', fontSize: 12 }}>Next</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

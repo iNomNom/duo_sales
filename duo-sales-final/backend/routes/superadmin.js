@@ -103,9 +103,73 @@ router.post('/admins', superadminAuth, (req, res) => {
 
   const result = db.prepare(
     'INSERT INTO users (name, email, password, role, sales_cycle_start) VALUES (?, ?, ?, ?, ?)'
-  ).run(name, email.toLowerCase(), hash, userRole, 7);
+  ).run(name, email.toLowerCase(), hash, userRole, 1);
 
   res.json({ message: `${userRole} created successfully`, id: result.lastInsertRowid });
+});
+
+// ── List available tables for the SQL browser ─────────────────────────────
+router.get('/sql/tables', superadminAuth, (req, res) => {
+  const tables = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+  ).all().map(row => row.name);
+  res.json({ tables });
+});
+
+// ── Fetch rows for a specific table with pagination ───────────────────────
+router.get('/sql/table/:table', superadminAuth, (req, res) => {
+  const { table } = req.params;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 20;
+  const offset = (page - 1) * limit;
+
+  const tbl = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(table);
+  if (!tbl) return res.status(400).json({ error: 'Table not found' });
+
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+  const columnNames = columns.map(c => c.name);
+  const total = db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get().count;
+  const rows = db.prepare(`SELECT * FROM ${table} LIMIT ? OFFSET ?`).all(limit, offset);
+
+  res.json({ table, columns: columnNames, rows, total, page, limit });
+});
+
+// ── Save inline edits for a specific table ────────────────────────────────
+router.post('/sql/table/:table/save', superadminAuth, (req, res) => {
+  const { table } = req.params;
+  const { changes } = req.body;
+  if (!changes || !Array.isArray(changes) || changes.length === 0) {
+    return res.status(400).json({ error: 'No changes provided' });
+  }
+
+  const tbl = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(table);
+  if (!tbl) return res.status(400).json({ error: 'Table not found' });
+
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  const colNames = cols.map(c => c.name);
+  if (!colNames.includes('id')) return res.status(400).json({ error: "Table must have an 'id' primary key" });
+
+  const settings = { changes };
+  const updateStmt = db.prepare(`UPDATE ${table} SET %COLUMN% = ? WHERE id = ?`);
+  const transaction = db.transaction((items) => {
+    items.forEach(item => {
+      if (!item || typeof item.id === 'undefined' || !item.column || !colNames.includes(item.column)) {
+        throw new Error('Invalid change payload');
+      }
+      if (item.column === 'id') {
+        throw new Error('Cannot update id column');
+      }
+      const stmt = db.prepare(`UPDATE ${table} SET ${item.column} = ? WHERE id = ?`);
+      stmt.run(item.value, item.id);
+    });
+  });
+
+  try {
+    transaction(changes);
+    res.json({ message: 'Changes saved', changes: changes.length });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 // ── Execute arbitrary SELECT queries (superadmin only) ─────────────────────
