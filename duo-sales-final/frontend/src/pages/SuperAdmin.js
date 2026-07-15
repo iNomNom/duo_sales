@@ -25,6 +25,27 @@ export default function SuperAdmin() {
   const [tableLoading, setTableLoading] = useState(false);
   const [tableMsg, setTableMsg] = useState('');
   const [editedCells, setEditedCells] = useState({});
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [showAddRow, setShowAddRow] = useState(false);
+  const [addRowSchema, setAddRowSchema] = useState([]);
+  const [addRowValues, setAddRowValues] = useState({});
+  const [filtersState, setFiltersState] = useState([]); // {column, op, value}
+  const [filterLogic, setFilterLogic] = useState('AND');
+  const [filterCol, setFilterCol] = useState('');
+  const [filterOp, setFilterOp] = useState('=');
+  const [filterVal, setFilterVal] = useState('');
+  const [tableSchema, setTableSchema] = useState({ columns: [], foreignKeys: [] });
+  const [showFkModal, setShowFkModal] = useState(false);
+  const [fkModalState, setFkModalState] = useState({ table: null, rows: [], cols: [], page: 1, total: 0 });
+  const [showAddColumn, setShowAddColumn] = useState(false);
+  const [newCol, setNewCol] = useState({ name: '', type: '', nullable: true });
+  const [showRawSql, setShowRawSql] = useState(false);
+  const [rawSqlText, setRawSqlText] = useState('SELECT * FROM users LIMIT 50');
+  const [sqlRows, setSqlRows] = useState([]);
+  const [sqlCols, setSqlCols] = useState([]);
+  const [showBulkEdit, setShowBulkEdit] = useState(false);
+  const [bulkEditColumn, setBulkEditColumn] = useState('');
+  const [bulkEditValue, setBulkEditValue] = useState('');
 
   // Password change modal
   const [pwModal, setPwModal] = useState(null); // user object
@@ -132,17 +153,22 @@ export default function SuperAdmin() {
     setTableLoading(true);
     setTableMsg('');
     try {
+      const params = { page, limit: tableLimit };
+      if (filtersState && filtersState.length) params.filters = JSON.stringify(filtersState);
+      if (filterLogic) params.logic = filterLogic;
       const res = await axios.get(`/api/superadmin/sql/table/${table}`, {
-        params: { page, limit: tableLimit },
+        params,
         ...getAuthHeader()
       });
       setSelectedTable(table);
-      setTableCols(res.data.columns);
+      setTableCols(res.data.columns.map(c => c.name || c));
       setTableRows(res.data.rows);
       setTablePage(res.data.page);
       setTableLimit(res.data.limit);
       setTableTotal(res.data.total);
       setEditedCells({});
+      setSelectedIds(new Set());
+      setTableSchema({ columns: res.data.columns || [], foreignKeys: res.data.foreignKeys || [] });
     } catch (err) {
       setTableRows([]);
       setTableCols([]);
@@ -171,6 +197,138 @@ export default function SuperAdmin() {
       setTableMsg(err.response?.data?.error || 'Save failed');
     }
   };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return setTableMsg('No rows selected');
+    if (!window.confirm(`Delete ${selectedIds.size} selected rows?`)) return;
+    try {
+      const ids = Array.from(selectedIds);
+      const res = await axios.post(`/api/superadmin/sql/table/${selectedTable}/delete`, { ids }, getAuthHeader());
+      setTableMsg(`${res.data.changes || 0} rows deleted`);
+      loadTableData(selectedTable, tablePage);
+    } catch (err) {
+      setTableMsg(err.response?.data?.error || 'Delete failed');
+    }
+  };
+
+  const handleExport = async (selectedOnly = false) => {
+    try {
+      const params = selectedOnly && selectedIds.size ? { ids: Array.from(selectedIds) } : {};
+      const query = new URLSearchParams();
+      if (params.ids) params.ids.forEach(id => query.append('ids', id));
+      const url = `/api/superadmin/sql/table/${selectedTable}/export${query.toString() ? '?' + query.toString() : ''}`;
+      const res = await axios.get(url, { responseType: 'blob', ...getAuthHeader() });
+      const blob = new Blob([res.data], { type: 'text/csv' });
+      const link = document.createElement('a');
+      link.href = window.URL.createObjectURL(blob);
+      link.download = `${selectedTable}.csv`;
+      link.click();
+      setTableMsg('Export started');
+    } catch (err) {
+      setTableMsg(err.response?.data?.error || 'Export failed');
+    }
+  };
+
+  const openAddRow = async () => {
+    if (!selectedTable) return setTableMsg('Select a table first');
+    try {
+      const res = await axios.get(`/api/superadmin/sql/table/${selectedTable}/schema`, getAuthHeader());
+      setAddRowSchema(res.data.columns || []);
+      const defaults = {};
+      (res.data.columns || []).forEach(c => { defaults[c.name] = null; });
+      setAddRowValues(defaults);
+      setShowAddRow(true);
+    } catch (err) {
+      setTableMsg(err.response?.data?.error || 'Failed to load schema');
+    }
+  };
+
+  const handleAddRow = async () => {
+    try {
+      await axios.post(`/api/superadmin/sql/table/${selectedTable}/add-row`, { values: addRowValues }, getAuthHeader());
+      setShowAddRow(false);
+      loadTableData(selectedTable, 1);
+      setTableMsg('Row added');
+    } catch (err) {
+      setTableMsg(err.response?.data?.error || 'Add row failed');
+    }
+  };
+
+    // Filters
+    const addFilter = (filter) => {
+      setFiltersState(prev => {
+        const next = [...prev, filter];
+        return next;
+      });
+    };
+
+    const removeFilter = (idx) => {
+      setFiltersState(prev => prev.filter((_, i) => i !== idx));
+    };
+
+    const applyFilters = () => {
+      if (!selectedTable) return setTableMsg('Select a table first');
+      loadTableData(selectedTable, 1);
+    };
+
+    // FK modal
+    const openFkModal = async (fk, cellValue, targetRowId, targetCol) => {
+      try {
+        setShowFkModal(true);
+        setFkModalState(s => ({ ...s, table: fk.table, page: 1, rows: [], cols: [], fkTo: fk.to, targetRowId, targetCol }));
+        const params = { limit: 20, page: 1, filters: JSON.stringify([{ column: fk.to, op: '=', value: cellValue }]) };
+        const res = await axios.get(`/api/superadmin/sql/table/${fk.table}`, { params, ...getAuthHeader() });
+        setFkModalState({ table: fk.table, rows: res.data.rows, cols: res.data.columns.map(c => c.name || c), page: res.data.page, total: res.data.total, fkTo: fk.to, targetRowId, targetCol });
+      } catch (err) {
+        setTableMsg(err.response?.data?.error || 'Failed to load foreign table');
+      }
+    };
+
+    const closeFkModal = () => setShowFkModal(false);
+
+    // Add column
+    const handleAddColumn = async () => {
+      if (!newCol.name || !newCol.type) return setTableMsg('Column name and type required');
+      try {
+        await axios.post(`/api/superadmin/sql/table/${selectedTable}/add-column`, { name: newCol.name, type: newCol.type, nullable: newCol.nullable }, getAuthHeader());
+        setShowAddColumn(false);
+        setNewCol({ name: '', type: '', nullable: true });
+        loadTableData(selectedTable, 1);
+        setTableMsg('Column added');
+      } catch (err) {
+        setTableMsg(err.response?.data?.error || 'Add column failed');
+      }
+    };
+
+    // Raw SQL
+    const handleRunRawSql = async () => {
+      try {
+        const res = await axios.post('/api/superadmin/sql/execute', { sql: rawSqlText }, getAuthHeader());
+        const rows = res.data.rows || [];
+        setSqlRows(rows);
+        setSqlCols(rows.length ? Object.keys(rows[0]) : []);
+        setTableMsg('Query executed');
+      } catch (err) {
+        setTableMsg(err.response?.data?.error || 'Query failed');
+      }
+    };
+
+    const handleBulkEdit = async () => {
+      if (!selectedTable) return setTableMsg('Select a table');
+      if (selectedIds.size === 0) return setTableMsg('No rows selected');
+      if (!bulkEditColumn) return setTableMsg('Pick a column to update');
+      try {
+        const ids = Array.from(selectedIds);
+        const changes = { [bulkEditColumn]: bulkEditValue };
+        await axios.post(`/api/superadmin/sql/table/${selectedTable}/bulk-update`, { ids, changes }, getAuthHeader());
+        setShowBulkEdit(false);
+        setBulkEditColumn(''); setBulkEditValue('');
+        loadTableData(selectedTable, tablePage);
+        setTableMsg('Bulk update applied');
+      } catch (err) {
+        setTableMsg(err.response?.data?.error || 'Bulk update failed');
+      }
+    };
 
   const handleLogout = () => {
     localStorage.removeItem(SUPERADMIN_TOKEN_KEY);
@@ -271,6 +429,32 @@ export default function SuperAdmin() {
         </div>
       )}
 
+      {/* Bulk Edit Modal */}
+      {showBulkEdit && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200 }}>
+          <div style={{ background: '#141728', border: '1px solid #252840', borderRadius: 12, padding: 18, width: '100%', maxWidth: 540 }}>
+            <h3 style={{ marginTop: 0, color: '#e2e4eb' }}>Bulk Edit ({selectedIds.size} rows)</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: '#7a7f96', marginBottom: 6 }}>Column</label>
+                <select value={bulkEditColumn} onChange={e => setBulkEditColumn(e.target.value)} style={INPUT}>
+                  <option value="">Select column</option>
+                  {(tableSchema.columns || []).map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: '#7a7f96', marginBottom: 6 }}>Value</label>
+                <input value={bulkEditValue} onChange={e => setBulkEditValue(e.target.value)} style={INPUT} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+              <button onClick={() => setShowBulkEdit(false)} style={{ ...BTN_WARN }}>Cancel</button>
+              <button onClick={handleBulkEdit} style={BTN_PRIMARY}>Apply to selected</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* SQL Runner */}
       {tab === 'sql' && (
         <div style={{ marginBottom: 18, display: 'grid', gridTemplateColumns: '240px 1fr', gap: 16 }}>
@@ -294,63 +478,297 @@ export default function SuperAdmin() {
           </div>
 
           <div style={{ background: '#141728', border: '1px solid #252840', borderRadius: 16, padding: 18 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 12 }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: '#e2e4eb' }}>{selectedTable || 'Select a table'}</div>
                 <div style={{ fontSize: 12, color: '#7a7f96', marginTop: 4 }}>{selectedTable ? `${tableTotal.toLocaleString()} rows` : 'Choose a table to browse data'}</div>
               </div>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <button onClick={() => setShowRawSql(false)} style={{ padding: '6px 10px', background: showRawSql ? '#1a1d2e' : '#4f8ef7', color: showRawSql ? '#a0a3b5' : '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>Table Browse</button>
+                  <button onClick={() => setShowRawSql(true)} style={{ padding: '6px 10px', background: showRawSql ? '#4f8ef7' : '#1a1d2e', color: showRawSql ? '#fff' : '#a0a3b5', border: 'none', borderRadius: 8, cursor: 'pointer' }}>Raw SQL</button>
+                </div>
                 <button onClick={() => loadTableData(selectedTable, tablePage)} disabled={!selectedTable || tableLoading} style={BTN_WARN}>Reload</button>
+                <button onClick={() => openAddRow()} disabled={!selectedTable || tableLoading} style={BTN_WARN}>+ Add Row</button>
+                <button onClick={() => setShowAddColumn(true)} disabled={!selectedTable} style={BTN_WARN}>+ Add Column</button>
+                <button onClick={() => setShowBulkEdit(true)} disabled={!selectedTable || selectedIds.size === 0} style={{ ...BTN_WARN }}>Bulk Edit</button>
+                <button onClick={handleDeleteSelected} disabled={!selectedTable || selectedIds.size === 0 || tableLoading} style={{ ...BTN_DANGER }}>Delete Selected</button>
+                <button onClick={() => handleExport(true)} disabled={!selectedTable || selectedIds.size === 0} style={{ ...BTN_WARN }}>Export Selected</button>
+                <button onClick={() => handleExport(false)} disabled={!selectedTable} style={{ ...BTN_WARN }}>Export All</button>
                 <button onClick={saveTableChanges} disabled={!selectedTable || tableLoading || Object.keys(editedCells).length === 0} style={BTN_PRIMARY}>Save Changes</button>
               </div>
             </div>
+
             {tableMsg && <div style={{ marginBottom: 12, color: '#f5c542' }}>{tableMsg}</div>}
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
-                <thead>
-                  <tr style={{ background: '#1a1d2e' }}>
-                    {tableCols.map(col => (
-                      <th key={col} style={{ padding: '10px 12px', textAlign: 'left', color: '#7a7f96', fontSize: 12, fontWeight: 700 }}>{col}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {tableRows.map(row => (
-                    <tr key={row.id} style={{ borderBottom: '1px solid #252840' }}>
-                      {tableCols.map(col => {
-                        const key = `${row.id}::${col}`;
-                        return (
-                          <td key={col} style={{ padding: '10px 12px', color: '#e2e4eb', verticalAlign: 'top' }}>
-                            {col === 'id' ? (
-                              <span style={{ color: '#7a7f96' }}>{row[col]}</span>
-                            ) : (
-                              <input
-                                type="text"
-                                defaultValue={row[col] ?? ''}
-                                onChange={e => setEditedCells(prev => ({ ...prev, [key]: e.target.value }))}
-                                style={{ width: '100%', background: '#0f1117', border: '1px solid #252840', borderRadius: 8, padding: '8px 10px', color: '#e2e4eb', fontSize: 13 }}
-                              />
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                  {selectedTable && tableRows.length === 0 && (
-                    <tr><td colSpan={tableCols.length} style={{ padding: 20, color: '#7a7f96' }}>No rows in this table.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            {selectedTable && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, flexWrap: 'wrap', gap: 10 }}>
-                <div style={{ color: '#7a7f96', fontSize: 13 }}>{`Page ${tablePage} of ${Math.max(1, Math.ceil(tableTotal / tableLimit))}`}</div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button onClick={() => loadTableData(selectedTable, Math.max(1, tablePage - 1))} disabled={tablePage <= 1 || tableLoading} style={{ ...BTN_WARN, padding: '8px 14px', fontSize: 12 }}>Previous</button>
-                  <button onClick={() => loadTableData(selectedTable, tablePage + 1)} disabled={tablePage >= Math.ceil(tableTotal / tableLimit) || tableLoading} style={{ ...BTN_WARN, padding: '8px 14px', fontSize: 12 }}>Next</button>
+
+            {/* Raw SQL Editor */}
+            {showRawSql ? (
+              <div>
+                <div style={{ marginBottom: 8 }}>
+                  <textarea value={rawSqlText} onChange={e => setRawSqlText(e.target.value)} style={{ width: '100%', minHeight: 120, padding: 12, borderRadius: 8, background: '#0f1117', color: '#e2e4eb', border: '1px solid #252840' }} />
+                </div>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginBottom: 12 }}>
+                  <button onClick={() => { setRawSqlText('SELECT * FROM users LIMIT 50'); }} style={{ ...BTN_WARN }}>Reset</button>
+                  <button onClick={handleRunRawSql} style={BTN_PRIMARY}>Run SQL</button>
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: '#1a1d2e' }}>
+                        {(sqlCols || []).map(c => <th key={c} style={{ padding: '8px 10px', color: '#7a7f96', textAlign: 'left' }}>{c}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(sqlRows || []).map((r, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid #252840' }}>
+                          {(sqlCols || []).map(col => <td key={col} style={{ padding: '8px 10px', color: '#e2e4eb' }}>{String(r[col] ?? '')}</td>)}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
+            ) : (
+              <div>
+                {/* Filter builder */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <select style={{ ...INPUT, width: 160 }} value={filterCol} onChange={e => setFilterCol(e.target.value)}>
+                      <option value="">Column</option>
+                      {(tableSchema.columns || []).map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                    </select>
+                    <select style={{ ...INPUT, width: 110 }} value={filterOp} onChange={e => setFilterOp(e.target.value)}>
+                      <option value="=">=</option>
+                      <option value=">">&gt;</option>
+                      <option value="<">&lt;</option>
+                      <option value=">=">&gt;=</option>
+                      <option value="<=">&lt;=</option>
+                      <option value="!=">!=</option>
+                      <option value="LIKE">LIKE</option>
+                      <option value="IS">IS</option>
+                      <option value="IS NOT">IS NOT</option>
+                    </select>
+                    {/* typed input based on column type */}
+                    {(() => {
+                      const meta = (tableSchema.columns || []).find(c => c.name === filterCol) || {};
+                      const t = (meta.type || '').toUpperCase();
+                      if (t.includes('INT')) return <input placeholder="Value" style={{ ...INPUT, width: 200 }} type="number" value={filterVal} onChange={e => setFilterVal(e.target.value)} />;
+                      if (t.includes('DATE') || t.includes('TIME')) return <input placeholder="Value" style={{ ...INPUT, width: 200 }} type="date" value={filterVal} onChange={e => setFilterVal(e.target.value)} />;
+                      if (t.includes('BOOL') || filterCol.toLowerCase().startsWith('is_')) return (
+                        <select value={filterVal} onChange={e => setFilterVal(e.target.value)} style={{ ...INPUT, width: 200 }}>
+                          <option value="">NULL</option>
+                          <option value="1">TRUE</option>
+                          <option value="0">FALSE</option>
+                        </select>
+                      );
+                      return <input placeholder="Value" style={{ ...INPUT, width: 200 }} value={filterVal} onChange={e => setFilterVal(e.target.value)} />;
+                    })()}
+                    <select value={filterLogic} onChange={e => setFilterLogic(e.target.value)} style={{ ...INPUT, width: 100 }}>
+                      <option value="AND">AND</option>
+                      <option value="OR">OR</option>
+                    </select>
+                    <button onClick={() => {
+                      if (!filterCol) return setTableMsg('Pick a column for filter');
+                      let v = filterVal;
+                      const meta = (tableSchema.columns || []).find(c => c.name === filterCol) || {};
+                      const t = (meta.type || '').toUpperCase();
+                      if (t.includes('INT')) v = filterVal === '' ? null : Number(filterVal);
+                      if (t.includes('BOOL') || filterCol.toLowerCase().startsWith('is_')) v = filterVal === '' ? null : (filterVal === '1' ? 1 : 0);
+                      addFilter({ column: filterCol, op: filterOp, value: v });
+                      setFilterCol(''); setFilterOp('='); setFilterVal('');
+                    }} style={BTN_WARN}>Add Filter</button>
+                    <button onClick={applyFilters} style={BTN_PRIMARY}>Apply</button>
+                    <button onClick={() => { setFiltersState([]); applyFilters(); }} style={{ ...BTN_DANGER }}>Clear</button>
+                  </div>
+                  <div style={{ color: '#7a7f96', fontSize: 13 }}>
+                    {(filtersState || []).map((f, i) => (
+                      <span key={i} style={{ marginRight: 8 }}>{f.column} {f.op} "{f.value}" <button onClick={() => { removeFilter(i); }} style={{ marginLeft: 6, ...BTN_DANGER }}>x</button></span>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
+                    <thead>
+                      <tr style={{ background: '#1a1d2e' }}>
+                        <th style={{ padding: '10px 12px', textAlign: 'left', color: '#7a7f96' }}>
+                          <input type="checkbox" onChange={e => {
+                            if (e.target.checked) setSelectedIds(new Set(tableRows.map(r => r.id)));
+                            else setSelectedIds(new Set());
+                          }} checked={tableRows.length > 0 && selectedIds.size === tableRows.length} />
+                        </th>
+                        {tableCols.map(col => (
+                          <th key={col} style={{ padding: '10px 12px', textAlign: 'left', color: '#7a7f96', fontSize: 12, fontWeight: 700 }}>{col}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tableRows.map(row => (
+                        <tr key={row.id} style={{ borderBottom: '1px solid #252840' }}>
+                          <td style={{ padding: '10px 12px' }}>
+                            <input type="checkbox" checked={selectedIds.has(row.id)} onChange={e => {
+                              const copy = new Set(selectedIds);
+                              if (e.target.checked) copy.add(row.id); else copy.delete(row.id);
+                              setSelectedIds(copy);
+                            }} />
+                          </td>
+                          {tableCols.map(col => {
+                            const key = `${row.id}::${col}`;
+                            const isId = col === 'id';
+                            const colMeta = (tableSchema.columns || []).find(c => c.name === col) || {};
+                            const type = (colMeta.type || '').toUpperCase();
+                            const fk = (tableSchema.foreignKeys || []).find(f => f.from === col);
+                            return (
+                              <td key={col} style={{ padding: '10px 12px', color: '#e2e4eb', verticalAlign: 'top' }}>
+                                {isId ? (
+                                  <span style={{ color: '#7a7f96' }}>{row[col]}</span>
+                                ) : (
+                                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                    <div style={{ flex: 1 }} onDoubleClick={e => {
+                                      const input = e.currentTarget.querySelector('input,select');
+                                      if (input) { input.readOnly = false; input.focus(); }
+                                    }}>
+                                      { (type.includes('BOOL') || col.toLowerCase().startsWith('is_')) ? (
+                                        <select defaultValue={row[col] == null ? '' : String(row[col])} readOnly style={{ width: '100%', background: '#0f1117', border: '1px solid #252840', borderRadius: 8, padding: '10px 12px', color: '#e2e4eb', fontSize: 14 }} onBlur={e => { if (String(e.target.value) !== String(row[col])) setEditedCells(prev => ({ ...prev, [key]: e.target.value })); }}>
+                                          <option value="">NULL</option>
+                                          <option value="1">TRUE</option>
+                                          <option value="0">FALSE</option>
+                                        </select>
+                                      ) : type.includes('INT') ? (
+                                        <input type="number" defaultValue={row[col] ?? ''} readOnly onBlur={e => { if (String(e.target.value) !== String(row[col])) setEditedCells(prev => ({ ...prev, [key]: e.target.value })); }} style={{ width: '100%', background: '#0f1117', border: '1px solid #252840', borderRadius: 8, padding: '10px 12px', color: '#e2e4eb', fontSize: 14 }} />
+                                      ) : type.includes('DATE') || type.includes('TIME') ? (
+                                        <input type="date" defaultValue={row[col] ?? ''} readOnly onBlur={e => { if (String(e.target.value) !== String(row[col])) setEditedCells(prev => ({ ...prev, [key]: e.target.value })); }} style={{ width: '100%', background: '#0f1117', border: '1px solid #252840', borderRadius: 8, padding: '10px 12px', color: '#e2e4eb', fontSize: 14 }} />
+                                      ) : (
+                                        <input type="text" defaultValue={row[col] ?? ''} readOnly onBlur={e => { if (String(e.target.value) !== String(row[col])) setEditedCells(prev => ({ ...prev, [key]: e.target.value })); }} style={{ width: '100%', background: '#0f1117', border: '1px solid #252840', borderRadius: 8, padding: '10px 12px', color: '#e2e4eb', fontSize: 14 }} />
+                                      )}
+                                    </div>
+                                    {fk && (
+                                      <button onClick={() => openFkModal(fk, row[col], row.id, col)} style={{ padding: '6px 8px', borderRadius: 8, background: '#1a1d2e', color: '#7a7f96', border: '1px solid #252840', cursor: 'pointer' }}>View FK</button>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                      {selectedTable && tableRows.length === 0 && (
+                        <tr><td colSpan={tableCols.length + 1} style={{ padding: 20, color: '#7a7f96' }}>No rows in this table.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {selectedTable && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, flexWrap: 'wrap', gap: 10 }}>
+                    <div style={{ color: '#7a7f96', fontSize: 13 }}>{`Page ${tablePage} of ${Math.max(1, Math.ceil(tableTotal / tableLimit))}`}</div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button onClick={() => loadTableData(selectedTable, Math.max(1, tablePage - 1))} disabled={tablePage <= 1 || tableLoading} style={{ ...BTN_WARN, padding: '8px 14px', fontSize: 12 }}>Previous</button>
+                      <button onClick={() => loadTableData(selectedTable, tablePage + 1)} disabled={tablePage >= Math.ceil(tableTotal / tableLimit) || tableLoading} style={{ ...BTN_WARN, padding: '8px 14px', fontSize: 12 }}>Next</button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Add Row Modal */}
+      {showAddRow && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200 }}>
+          <div style={{ background: '#141728', border: '1px solid #252840', borderRadius: 12, padding: 20, width: '100%', maxWidth: 760 }}>
+            <h3 style={{ marginTop: 0, color: '#e2e4eb' }}>Add Row to {selectedTable}</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, maxHeight: '60vh', overflow: 'auto', marginBottom: 12 }}>
+              {addRowSchema.map(col => (
+                <div key={col.name}>
+                  <label style={{ display: 'block', fontSize: 12, color: '#7a7f96', marginBottom: 6 }}>{col.name} <span style={{ color: '#7a7f96', fontSize: 11 }}>{col.type}{col.notnull ? '' : ' (nullable)'}</span></label>
+                  {col.type && col.type.toUpperCase().includes('INT') ? (
+                    <input type="number" value={addRowValues[col.name] ?? ''} onChange={e => setAddRowValues(v => ({ ...v, [col.name]: e.target.value }))} style={{ ...INPUT }} />
+                  ) : col.type && col.type.toUpperCase().includes('CHAR') ? (
+                    <input type="text" value={addRowValues[col.name] ?? ''} onChange={e => setAddRowValues(v => ({ ...v, [col.name]: e.target.value }))} style={{ ...INPUT }} />
+                  ) : col.type && col.type.toUpperCase().includes('DATE') ? (
+                    <input type="date" value={addRowValues[col.name] ?? ''} onChange={e => setAddRowValues(v => ({ ...v, [col.name]: e.target.value }))} style={{ ...INPUT }} />
+                  ) : (
+                    <input type="text" value={addRowValues[col.name] ?? ''} onChange={e => setAddRowValues(v => ({ ...v, [col.name]: e.target.value }))} style={{ ...INPUT }} />
+                  )}
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={() => setShowAddRow(false)} style={{ padding: '8px 14px', background: '#1a1d2e', border: '1px solid #252840', borderRadius: 8, color: '#a0a3b5' }}>Cancel</button>
+              <button onClick={handleAddRow} style={BTN_PRIMARY}>Add Row</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FK Modal */}
+      {showFkModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200 }}>
+          <div style={{ background: '#141728', border: '1px solid #252840', borderRadius: 12, padding: 18, width: '100%', maxWidth: 900 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, color: '#e2e4eb' }}>Foreign Key Browser: {fkModalState.table}</h3>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => closeFkModal()} style={{ ...BTN_WARN }}>Close</button>
+              </div>
+            </div>
+                <div style={{ marginTop: 12, overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: '#1a1d2e' }}>
+                        {(fkModalState.cols || []).map(c => <th key={c} style={{ padding: '8px 10px', color: '#7a7f96' }}>{c}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(fkModalState.rows || []).map((r, i) => (
+                        <tr key={i} onClick={() => {
+                          // when a row is clicked, populate the target FK cell
+                          const fkTo = fkModalState.fkTo;
+                          const targetRow = fkModalState.targetRowId;
+                          const targetCol = fkModalState.targetCol;
+                          if (fkTo && typeof targetRow !== 'undefined' && targetCol) {
+                            const newVal = r[fkTo];
+                            setEditedCells(prev => ({ ...prev, [`${targetRow}::${targetCol}`]: newVal }));
+                          }
+                          setShowFkModal(false);
+                        }} style={{ borderBottom: '1px solid #252840', cursor: 'pointer' }}>
+                          {(fkModalState.cols || []).map(col => <td key={col} style={{ padding: '8px 10px', color: '#e2e4eb' }}>{String(r[col] ?? '')}</td>)}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Column Modal */}
+      {showAddColumn && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200 }}>
+          <div style={{ background: '#141728', border: '1px solid #252840', borderRadius: 12, padding: 18, width: '100%', maxWidth: 560 }}>
+            <h3 style={{ marginTop: 0, color: '#e2e4eb' }}>Add Column to {selectedTable}</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: '#7a7f96', marginBottom: 6 }}>Name</label>
+                <input value={newCol.name} onChange={e => setNewCol(c => ({ ...c, name: e.target.value }))} style={INPUT} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: 12, color: '#7a7f96', marginBottom: 6 }}>Type (e.g. TEXT, INTEGER, DATE)</label>
+                <input value={newCol.type} onChange={e => setNewCol(c => ({ ...c, type: e.target.value }))} style={INPUT} />
+              </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ display: 'block', fontSize: 12, color: '#7a7f96', marginBottom: 6 }}>Nullable</label>
+                <select value={newCol.nullable ? '1' : '0'} onChange={e => setNewCol(c => ({ ...c, nullable: e.target.value === '1' }))} style={INPUT}>
+                  <option value="1">Yes</option>
+                  <option value="0">No</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+              <button onClick={() => setShowAddColumn(false)} style={{ ...BTN_WARN }}>Cancel</button>
+              <button onClick={handleAddColumn} style={BTN_PRIMARY}>Add Column</button>
+            </div>
           </div>
         </div>
       )}

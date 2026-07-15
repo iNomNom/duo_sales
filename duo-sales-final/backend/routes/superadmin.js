@@ -5,6 +5,8 @@ const { db } = require('../models/db');
 
 const SECRET = process.env.JWT_SECRET || 'duo_secret_change_in_production';
 const SUPERADMIN_KEY = 'Nomi@Nice1';
+const MAX_EXPORT_ROWS = 2000;
+const MAX_SQL_ROWS = 1000;
 
 // ── Superadmin Auth Middleware ──────────────────────────────────────────────
 function superadminAuth(req, res, next) {
@@ -122,16 +124,87 @@ router.get('/sql/table/:table', superadminAuth, (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 20;
   const offset = (page - 1) * limit;
+  const filters = req.query.filters ? JSON.parse(req.query.filters) : [];
+  const sortBy = req.query.sortBy || null;
+  const sortDir = (req.query.sortDir || 'ASC').toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
 
   const tbl = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(table);
   if (!tbl) return res.status(400).json({ error: 'Table not found' });
 
   const columns = db.prepare(`PRAGMA table_info(${table})`).all();
   const columnNames = columns.map(c => c.name);
-  const total = db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get().count;
-  const rows = db.prepare(`SELECT * FROM ${table} LIMIT ? OFFSET ?`).all(limit, offset);
 
-  res.json({ table, columns: columnNames, rows, total, page, limit });
+  // Build WHERE clause from filters: [{ column, op, value }]
+  let whereClause = '';
+  const params = [];
+  if (Array.isArray(filters) && filters.length > 0) {
+    const parts = [];
+    filters.forEach(f => {
+      if (!f.column || typeof f.op === 'undefined') return;
+      // simple ops: =, !=, LIKE, IS, IS NOT, >, <, >=, <=
+      const op = String(f.op).toUpperCase();
+      if (op === 'LIKE') {
+        parts.push(`${f.column} LIKE ?`);
+        params.push(String(f.value));
+      } else if (op === 'IS' || op === 'IS NOT') {
+        parts.push(`${f.column} ${op} ?`);
+        params.push(f.value === null ? null : String(f.value));
+      } else {
+        parts.push(`${f.column} ${op} ?`);
+        params.push(String(f.value));
+      }
+    });
+    if (parts.length) {
+      const logic = String(req.query.logic || 'AND').toUpperCase() === 'OR' ? ' OR ' : ' AND ';
+      whereClause = 'WHERE ' + parts.join(logic);
+    }
+  }
+
+  const totalRow = db.prepare(`SELECT COUNT(*) as count FROM ${table} ${whereClause}`).get(...params);
+  const total = totalRow.count;
+
+  let orderClause = '';
+  if (sortBy && columnNames.includes(sortBy)) {
+    orderClause = `ORDER BY ${sortBy} ${sortDir}`;
+  }
+
+  const rows = db.prepare(`SELECT * FROM ${table} ${whereClause} ${orderClause} LIMIT ? OFFSET ?`).all(...params, limit, offset);
+
+  res.json({ table, columns: columns, rows, total, page, limit });
+});
+
+// ── Bulk update: apply same changes to many rows ─────────────────────────
+router.post('/sql/table/:table/bulk-update', superadminAuth, (req, res) => {
+  const { table } = req.params;
+  const { ids, changes } = req.body; // ids: [1,2], changes: { colName: value }
+  if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'ids array required' });
+  if (!changes || typeof changes !== 'object' || Object.keys(changes).length === 0) return res.status(400).json({ error: 'changes object required' });
+  const tbl = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(table);
+  if (!tbl) return res.status(400).json({ error: 'Table not found' });
+
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  const colNames = cols.map(c => c.name);
+  if (!colNames.includes('id')) return res.status(400).json({ error: "Table must have an 'id' primary key" });
+
+  // validate change columns
+  const toUpdate = Object.entries(changes).filter(([col]) => colNames.includes(col) && col !== 'id');
+  if (toUpdate.length === 0) return res.status(400).json({ error: 'No valid columns to update' });
+
+  const transaction = db.transaction((idsList) => {
+    idsList.forEach(id => {
+      const parts = toUpdate.map(([col]) => `${col} = ?`).join(', ');
+      const stmt = db.prepare(`UPDATE ${table} SET ${parts} WHERE id = ?`);
+      const values = toUpdate.map(([, val]) => val).concat([id]);
+      stmt.run(...values);
+    });
+  });
+
+  try {
+    transaction(ids);
+    res.json({ message: 'Bulk update applied', rows: ids.length });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 // ── Save inline edits for a specific table ────────────────────────────────
@@ -170,6 +243,109 @@ router.post('/sql/table/:table/save', superadminAuth, (req, res) => {
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
+});
+
+// ── Get table schema and foreign keys ───────────────────────────────────
+router.get('/sql/table/:table/schema', superadminAuth, (req, res) => {
+  const { table } = req.params;
+  const tbl = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(table);
+  if (!tbl) return res.status(400).json({ error: 'Table not found' });
+
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all();
+  const fks = db.prepare(`PRAGMA foreign_key_list(${table})`).all();
+  res.json({ columns, foreignKeys: fks });
+});
+
+// ── Delete rows by id list ─────────────────────────────────────────────
+router.post('/sql/table/:table/delete', superadminAuth, (req, res) => {
+  const { table } = req.params;
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) return res.status(400).json({ error: 'ids array required' });
+  const tbl = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(table);
+  if (!tbl) return res.status(400).json({ error: 'Table not found' });
+
+  const placeholders = ids.map(() => '?').join(',');
+  const stmt = db.prepare(`DELETE FROM ${table} WHERE id IN (${placeholders})`);
+  const info = stmt.run(...ids);
+  res.json({ changes: info.changes });
+});
+
+// ── Add column to table ───────────────────────────────────────────────
+router.post('/sql/table/:table/add-column', superadminAuth, (req, res) => {
+  const { table } = req.params;
+  const { column, type, nullable, name } = req.body;
+  const colName = column || name;
+  const colType = type;
+  if (!colName || !colType) return res.status(400).json({ error: 'column/name and type required' });
+  const tbl = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(table);
+  if (!tbl) return res.status(400).json({ error: 'Table not found' });
+
+  // basic name/type validation to avoid SQL injection via identifiers
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(colName)) return res.status(400).json({ error: 'Invalid column name' });
+  if (!/^[A-Za-z0-9_()\s]+$/.test(colType)) return res.status(400).json({ error: 'Invalid column type' });
+
+  // ensure column doesn't already exist
+  const existing = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
+  if (existing.includes(colName)) return res.status(400).json({ error: 'Column already exists' });
+
+  try {
+    const nullStr = nullable === false || nullable === 'false' ? ' NOT NULL' : '';
+    db.prepare(`ALTER TABLE ${table} ADD COLUMN ${colName} ${colType}${nullStr}`).run();
+    res.json({ message: 'Column added' });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ── Add row to table ──────────────────────────────────────────────────
+router.post('/sql/table/:table/add-row', superadminAuth, (req, res) => {
+  const { table } = req.params;
+  const { values } = req.body; // { col: value }
+  if (!values || typeof values !== 'object') return res.status(400).json({ error: 'values object required' });
+  const tbl = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(table);
+  if (!tbl) return res.status(400).json({ error: 'Table not found' });
+
+  const cols = Object.keys(values);
+  if (cols.length === 0) return res.status(400).json({ error: 'Empty values' });
+
+  const placeholders = cols.map(() => '?').join(',');
+  const stmt = db.prepare(`INSERT INTO ${table} (${cols.join(',')}) VALUES (${placeholders})`);
+  try {
+    const info = stmt.run(...cols.map(c => values[c]));
+    res.json({ lastInsertRowid: info.lastInsertRowid });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ── Export CSV (all or selected ids) ──────────────────────────────────
+router.get('/sql/table/:table/export', superadminAuth, (req, res) => {
+  const { table } = req.params;
+  const ids = req.query.ids ? (Array.isArray(req.query.ids) ? req.query.ids : [req.query.ids]) : null;
+  const tbl = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(table);
+  if (!tbl) return res.status(400).json({ error: 'Table not found' });
+
+  let rows;
+  if (ids && ids.length) {
+    const placeholders = ids.map(() => '?').join(',');
+    rows = db.prepare(`SELECT * FROM ${table} WHERE id IN (${placeholders})`).all(...ids);
+  } else {
+    const totalRows = db.prepare(`SELECT COUNT(*) as count FROM ${table}`).get().count;
+    if (totalRows > MAX_EXPORT_ROWS) return res.status(400).json({ error: `Export exceeds limit (${MAX_EXPORT_ROWS}). Please apply filters or export selected rows.` });
+    rows = db.prepare(`SELECT * FROM ${table}`).all();
+  }
+
+  // Convert to CSV
+  if (!rows || rows.length === 0) {
+    res.setHeader('Content-Type', 'text/csv');
+    return res.send('');
+  }
+  const cols = Object.keys(rows[0]);
+  const escape = v => (v === null || typeof v === 'undefined') ? '' : String(v).replace(/"/g, '""');
+  const csv = [cols.join(',')].concat(rows.map(r => cols.map(c => `"${escape(r[c])}"`).join(','))).join('\n');
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${table}.csv"`);
+  res.send(csv);
 });
 
 // ── Execute arbitrary SELECT queries (superadmin only) ─────────────────────
