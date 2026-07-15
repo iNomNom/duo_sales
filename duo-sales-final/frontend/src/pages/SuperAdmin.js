@@ -1,35 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
 const SUPERADMIN_TOKEN_KEY = 'duo_superadmin_token';
 
-// ── Icons Pack (SVG Helpers) ────────────────────────────────────────────────
+// ── Vector Icon Elements ────────────────────────────────────────────────────
 const KeyIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
-);
-const DatabaseIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3M17 4l3 3"/></svg>
 );
 const TerminalIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
 );
-const PlusIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-);
-const RefreshIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-);
-const TrashIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-);
-const ExportIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+const SearchIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
 );
 const SaveIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
 );
-const LogOutIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+const CancelIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+);
+const EditIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+);
+const GridIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="21" y1="9" x2="3" y2="9"/><line x1="21" y1="15" x2="3" y2="15"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
 );
 
 export default function SuperAdmin() {
@@ -38,13 +32,13 @@ export default function SuperAdmin() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Directory Data
+  // Layout selection: 'admins' | 'all-users' | 'tables' | 'sql'
+  const [tab, setTab] = useState('tables');
+  const [dataLoaded, setDataLoaded] = useState(false);
   const [admins, setAdmins] = useState([]);
   const [users, setUsers] = useState([]);
-  const [tab, setTab] = useState('admins'); // 'admins' | 'all-users' | 'sql'
-  const [dataLoaded, setDataLoaded] = useState(false);
 
-  // SQL Engine
+  // Data Explorer State
   const [tableList, setTableList] = useState([]);
   const [selectedTable, setSelectedTable] = useState('');
   const [tableCols, setTableCols] = useState([]);
@@ -54,32 +48,42 @@ export default function SuperAdmin() {
   const [tableTotal, setTableTotal] = useState(0);
   const [tableLoading, setTableLoading] = useState(false);
   const [tableMsg, setTableMsg] = useState('');
-  const [editedCells, setEditedCells] = useState({});
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [sortBy, setSortBy] = useState('');
   const [sortDir, setSortDir] = useState('ASC');
-  const [showAddRow, setShowAddRow] = useState(false);
-  const [addRowSchema, setAddRowSchema] = useState([]);
-  const [addRowValues, setAddRowValues] = useState({});
+  const [tableSearch, setTableSearch] = useState('');
+
+  // Embedded Interactive Spreadsheet States
+  const [hoveredCell, setHoveredCell] = useState(null); // { rowId, colName }
+  const [focusedCell, setFocusedCell] = useState(null); // { rowId, colName }
+  const [editingCell, setEditingCell] = useState(null); // { rowId, colName }
+  const [editValue, setEditValue] = useState('');
+  const [editedCells, setEditedCells] = useState({}); // Stores unsaved edits: { 'rowId::colName': val }
+  const cellInputRef = useRef(null);
+
+  // Filters State
   const [filtersState, setFiltersState] = useState([]);
-  const [filterLogic, setFilterLogic] = useState('AND');
   const [filterCol, setFilterCol] = useState('');
   const [filterOp, setFilterOp] = useState('=');
   const [filterVal, setFilterVal] = useState('');
   const [tableSchema, setTableSchema] = useState({ columns: [], foreignKeys: [] });
-  const [showFkModal, setShowFkModal] = useState(false);
-  const [fkModalState, setFkModalState] = useState({ table: null, rows: [], cols: [], page: 1, total: 0 });
+
+  // Custom modals
+  const [showAddRow, setShowAddRow] = useState(false);
+  const [addRowSchema, setAddRowSchema] = useState([]);
+  const [addRowValues, setAddRowValues] = useState({});
   const [showAddColumn, setShowAddColumn] = useState(false);
   const [newCol, setNewCol] = useState({ name: '', type: 'TEXT', nullable: true });
-  const [showRawSql, setShowRawSql] = useState(false);
-  const [rawSqlText, setRawSqlText] = useState('SELECT * FROM users LIMIT 50');
-  const [sqlRows, setSqlRows] = useState([]);
-  const [sqlCols, setSqlCols] = useState([]);
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [bulkEditColumn, setBulkEditColumn] = useState('');
   const [bulkEditValue, setBulkEditValue] = useState('');
 
-  // Modals
+  // Compiler Console
+  const [rawSqlText, setRawSqlText] = useState('SELECT * FROM users LIMIT 10');
+  const [sqlRows, setSqlRows] = useState([]);
+  const [sqlCols, setSqlCols] = useState([]);
+
+  // Directory Control Modals
   const [pwModal, setPwModal] = useState(null);
   const [newPw, setNewPw] = useState('');
   const [pwMsg, setPwMsg] = useState('');
@@ -87,6 +91,10 @@ export default function SuperAdmin() {
   const [createForm, setCreateForm] = useState({ name: '', email: '', password: '', role: 'admin' });
   const [createMsg, setCreateMsg] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+
+  // Dynamic Focus States for inputs (removes the need for a separate CSS file)
+  const [activeFocusField, setActiveFocusField] = useState(null);
+  const [sidebarHover, setSidebarHover] = useState(null);
 
   const getAuthHeader = () => {
     const token = localStorage.getItem(SUPERADMIN_TOKEN_KEY);
@@ -103,7 +111,7 @@ export default function SuperAdmin() {
       setAuthed(true);
       axios.defaults.headers.common['Authorization'] = `Bearer ${res.data.token}`;
     } catch (err) {
-      setError(err.response?.data?.error || 'Authentication key rejection.');
+      setError(err.response?.data?.error || 'Master Key Verification Aborted.');
     } finally {
       setLoading(false);
     }
@@ -121,50 +129,8 @@ export default function SuperAdmin() {
     } catch (err) {
       if (err.response?.status === 401) {
         handleLogout();
-        setError('Session expired. Authorization key required.');
+        setError('Session token rejected. verification required.');
       }
-    }
-  };
-
-  const handlePasswordChange = async () => {
-    if (!newPw || newPw.length < 6) { 
-      setPwMsg('Target values must contain at least 6 characters.'); 
-      return; 
-    }
-    setPwMsg('');
-    try {
-      const res = await axios.put(`/api/superadmin/users/${pwModal.id}/password`, { newPassword: newPw }, getAuthHeader());
-      setPwMsg(res.data.message);
-      setNewPw('');
-      setTimeout(() => { setPwModal(null); setPwMsg(''); }, 1500);
-    } catch (err) {
-      setPwMsg(err.response?.data?.error || 'Update procedure rejected by database.');
-    }
-  };
-
-  const handleCreateAdmin = async () => {
-    setCreateMsg('');
-    if (!createForm.name || !createForm.email || !createForm.password) {
-      setCreateMsg('All credential elements are required.');
-      return;
-    }
-    try {
-      const res = await axios.post('/api/superadmin/admins', createForm, getAuthHeader());
-      setCreateMsg(res.data.message);
-      setCreateForm({ name: '', email: '', password: '', role: 'admin' });
-      setTimeout(() => { setShowCreate(false); setCreateMsg(''); loadData(); }, 1500);
-    } catch (err) {
-      setCreateMsg(err.response?.data?.error || 'Account persistence error.');
-    }
-  };
-
-  const handleDelete = async (userId) => {
-    try {
-      const res = await axios.delete(`/api/superadmin/users/${userId}`, getAuthHeader());
-      setDeleteConfirm(null);
-      loadData();
-    } catch (err) {
-      alert(err.response?.data?.error || 'Record deletion rejected.');
     }
   };
 
@@ -172,8 +138,11 @@ export default function SuperAdmin() {
     try {
       const res = await axios.get('/api/superadmin/sql/tables', getAuthHeader());
       setTableList(res.data.tables);
+      if (res.data.tables.length > 0 && !selectedTable) {
+        setSelectedTable(res.data.tables[0]);
+      }
     } catch (err) {
-      setTableMsg(err.response?.data?.error || 'Database catalog read failure.');
+      setTableMsg(err.response?.data?.error || 'Schema validation failure');
     }
   };
 
@@ -184,17 +153,13 @@ export default function SuperAdmin() {
     try {
       const params = { page, limit: tableLimit };
       if (filtersState && filtersState.length) params.filters = JSON.stringify(filtersState);
-      if (filterLogic) params.logic = filterLogic;
       const activeSortBy = sortByParam !== null ? sortByParam : sortBy;
       const activeSortDir = sortDirParam !== null ? sortDirParam : sortDir;
       if (activeSortBy) {
         params.sortBy = activeSortBy;
         params.sortDir = activeSortDir;
       }
-      const res = await axios.get(`/api/superadmin/sql/table/${table}`, {
-        params,
-        ...getAuthHeader()
-      });
+      const res = await axios.get(`/api/superadmin/sql/table/${table}`, { params, ...getAuthHeader() });
       setSelectedTable(table);
       setTableCols(res.data.columns.map(c => c.name || c));
       setTableRows(res.data.rows);
@@ -209,18 +174,10 @@ export default function SuperAdmin() {
       setTableCols([]);
       setTablePage(1);
       setTableTotal(0);
-      setTableMsg(err.response?.data?.error || 'Catalog access exception.');
+      setTableMsg(err.response?.data?.error || 'Failure to unpack table catalog.');
     } finally {
       setTableLoading(false);
     }
-  };
-
-  const handleSortColumn = (col) => {
-    if (!selectedTable) return;
-    const nextDir = sortBy === col && sortDir === 'ASC' ? 'DESC' : 'ASC';
-    setSortBy(col);
-    setSortDir(nextDir);
-    loadTableData(selectedTable, tablePage, col, nextDir);
   };
 
   const saveTableChanges = async () => {
@@ -229,60 +186,57 @@ export default function SuperAdmin() {
       return { id: Number(id), column, value };
     });
     if (changes.length === 0) {
-      setTableMsg('No pending values discovered.');
+      setTableMsg('No cell modifications pending write.');
       return;
     }
     try {
       const res = await axios.post(`/api/superadmin/sql/table/${selectedTable}/save`, { changes }, getAuthHeader());
-      setTableMsg(res.data.message || 'Transactions executed.');
+      setTableMsg(res.data.message || 'Changes saved successfully.');
+      setEditedCells({});
       loadTableData(selectedTable, tablePage);
     } catch (err) {
-      setTableMsg(err.response?.data?.error || 'Pipeline execution failed.');
+      setTableMsg(err.response?.data?.error || 'Pipeline write execution rejected.');
     }
   };
 
-  const handleDeleteSelected = async () => {
-    if (selectedIds.size === 0) return setTableMsg('Select records first.');
-    if (!window.confirm(`Are you sure you want to delete ${selectedIds.size} records permanently?`)) return;
+  const handleExport = async () => {
     try {
-      const ids = Array.from(selectedIds);
-      const res = await axios.post(`/api/superadmin/sql/table/${selectedTable}/delete`, { ids }, getAuthHeader());
-      setTableMsg(`${res.data.changes || 0} items purged.`);
-      loadTableData(selectedTable, tablePage);
-    } catch (err) {
-      setTableMsg(err.response?.data?.error || 'Execution context failure.');
-    }
-  };
-
-  const handleExport = async (selectedOnly = false) => {
-    try {
-      const params = selectedOnly && selectedIds.size ? { ids: Array.from(selectedIds) } : {};
-      const query = new URLSearchParams();
-      if (params.ids) params.ids.forEach(id => query.append('ids', id));
-      const url = `/api/superadmin/sql/table/${selectedTable}/export${query.toString() ? '?' + query.toString() : ''}`;
+      const url = `/api/superadmin/sql/table/${selectedTable}/export`;
       const res = await axios.get(url, { responseType: 'blob', ...getAuthHeader() });
       const blob = new Blob([res.data], { type: 'text/csv' });
       const link = document.createElement('a');
       link.href = window.URL.createObjectURL(blob);
-      link.download = `${selectedTable}_extract.csv`;
+      link.download = `${selectedTable}_dump.csv`;
       link.click();
-      setTableMsg('CSV streaming finalized.');
+      setTableMsg('Dump stream processed successfully.');
     } catch (err) {
-      setTableMsg(err.response?.data?.error || 'Database extract stream failure.');
+      setTableMsg('Export rejected by target file-system.');
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Drop selected ${selectedIds.size} row(s)?`)) return;
+    try {
+      const ids = Array.from(selectedIds);
+      const res = await axios.post(`/api/superadmin/sql/table/${selectedTable}/delete`, { ids }, getAuthHeader());
+      setTableMsg(`${res.data.changes || 0} structures successfully purged.`);
+      loadTableData(selectedTable, tablePage);
+    } catch (err) {
+      setTableMsg(err.response?.data?.error || 'Database constraint deletion conflict.');
     }
   };
 
   const openAddRow = async () => {
-    if (!selectedTable) return setTableMsg('Target catalog entity unspecified.');
     try {
       const res = await axios.get(`/api/superadmin/sql/table/${selectedTable}/schema`, getAuthHeader());
       setAddRowSchema(res.data.columns || []);
       const defaults = {};
-      (res.data.columns || []).forEach(c => { defaults[c.name] = null; });
+      (res.data.columns || []).forEach(c => { defaults[c.name] = ''; });
       setAddRowValues(defaults);
       setShowAddRow(true);
     } catch (err) {
-      setTableMsg(err.response?.data?.error || 'Schema catalog error.');
+      setTableMsg(err.response?.data?.error || 'Schema validation error.');
     }
   };
 
@@ -291,41 +245,13 @@ export default function SuperAdmin() {
       await axios.post(`/api/superadmin/sql/table/${selectedTable}/add-row`, { values: addRowValues }, getAuthHeader());
       setShowAddRow(false);
       loadTableData(selectedTable, 1);
-      setTableMsg('Record persisted.');
+      setTableMsg('Record persisted successfully.');
     } catch (err) {
-      setTableMsg(err.response?.data?.error || 'Insertion parameters rejected.');
+      setTableMsg(err.response?.data?.error || 'Database integrity assertion failure.');
     }
   };
-
-  const addFilter = (filter) => {
-    setFiltersState(prev => [...prev, filter]);
-  };
-
-  const removeFilter = (idx) => {
-    setFiltersState(prev => prev.filter((_, i) => i !== idx));
-  };
-
-  const applyFilters = () => {
-    if (!selectedTable) return setTableMsg('Target table not specified.');
-    loadTableData(selectedTable, 1);
-  };
-
-  const openFkModal = async (fk, cellValue, targetRowId, targetCol) => {
-    try {
-      setShowFkModal(true);
-      setFkModalState(s => ({ ...s, table: fk.table, page: 1, rows: [], cols: [], fkTo: fk.to, targetRowId, targetCol }));
-      const params = { limit: 15, page: 1, filters: JSON.stringify([{ column: fk.to, op: '=', value: cellValue }]) };
-      const res = await axios.get(`/api/superadmin/sql/table/${fk.table}`, { params, ...getAuthHeader() });
-      setFkModalState({ table: fk.table, rows: res.data.rows, cols: res.data.columns.map(c => c.name || c), page: res.data.page, total: res.data.total, fkTo: fk.to, targetRowId, targetCol });
-    } catch (err) {
-      setTableMsg(err.response?.data?.error || 'Relation fetch aborted.');
-    }
-  };
-
-  const closeFkModal = () => setShowFkModal(false);
 
   const handleAddColumn = async () => {
-    if (!newCol.name || !newCol.type) return setTableMsg('Identifier structures missing parameters.');
     try {
       await axios.post(`/api/superadmin/sql/table/${selectedTable}/add-column`, { name: newCol.name, type: newCol.type, nullable: newCol.nullable }, getAuthHeader());
       setShowAddColumn(false);
@@ -333,7 +259,22 @@ export default function SuperAdmin() {
       loadTableData(selectedTable, 1);
       setTableMsg('Alteration executed successfully.');
     } catch (err) {
-      setTableMsg(err.response?.data?.error || 'Column creation rejected.');
+      setTableMsg(err.response?.data?.error || 'Table structural migration failure.');
+    }
+  };
+
+  const handleBulkEdit = async () => {
+    try {
+      const ids = Array.from(selectedIds);
+      const changes = { [bulkEditColumn]: bulkEditValue };
+      await axios.post(`/api/superadmin/sql/table/${selectedTable}/bulk-update`, { ids, changes }, getAuthHeader());
+      setShowBulkEdit(false);
+      setBulkEditColumn(''); 
+      setBulkEditValue('');
+      loadTableData(selectedTable, tablePage);
+      setTableMsg('Batch processing writes committed.');
+    } catch (err) {
+      setTableMsg(err.response?.data?.error || 'Transaction engine error.');
     }
   };
 
@@ -343,27 +284,46 @@ export default function SuperAdmin() {
       const rows = res.data.rows || [];
       setSqlRows(rows);
       setSqlCols(rows.length ? Object.keys(rows[0]) : []);
-      setTableMsg('Query execution complete.');
+      setTableMsg('Query execution finalized.');
     } catch (err) {
-      setTableMsg(err.response?.data?.error || 'Parser exception encountered.');
+      setTableMsg(err.response?.data?.error || 'Compiler engine mismatch.');
     }
   };
 
-  const handleBulkEdit = async () => {
-    if (!selectedTable) return setTableMsg('Please select a target database catalog.');
-    if (selectedIds.size === 0) return setTableMsg('No primary keys specified.');
-    if (!bulkEditColumn) return setTableMsg('Column parameters required.');
+  const handlePasswordChange = async () => {
+    if (!newPw || newPw.length < 6) { setPwMsg('Length restriction error.'); return; }
     try {
-      const ids = Array.from(selectedIds);
-      const changes = { [bulkEditColumn]: bulkEditValue };
-      await axios.post(`/api/superadmin/sql/table/${selectedTable}/bulk-update`, { ids, changes }, getAuthHeader());
-      setShowBulkEdit(false);
-      setBulkEditColumn(''); 
-      setBulkEditValue('');
-      loadTableData(selectedTable, tablePage);
-      setTableMsg('Transact pipeline executed.');
+      const res = await axios.put(`/api/superadmin/users/${pwModal.id}/password`, { newPassword: newPw }, getAuthHeader());
+      setPwMsg(res.data.message);
+      setNewPw('');
+      setTimeout(() => { setPwModal(null); setPwMsg(''); loadData(); }, 1500);
     } catch (err) {
-      setTableMsg(err.response?.data?.error || 'Execution engine transaction rejected.');
+      setPwMsg(err.response?.data?.error || 'Aborted.');
+    }
+  };
+
+  const handleCreateAdmin = async () => {
+    if (!createForm.name || !createForm.email || !createForm.password) {
+      setCreateMsg('All structures are required.');
+      return;
+    }
+    try {
+      const res = await axios.post('/api/superadmin/admins', createForm, getAuthHeader());
+      setCreateMsg(res.data.message);
+      setCreateForm({ name: '', email: '', password: '', role: 'admin' });
+      setTimeout(() => { setShowCreate(false); setCreateMsg(''); loadData(); }, 1500);
+    } catch (err) {
+      setCreateMsg(err.response?.data?.error || 'Account persistence mismatch.');
+    }
+  };
+
+  const handleDeleteUser = async (userId) => {
+    try {
+      await axios.delete(`/api/superadmin/users/${userId}`, getAuthHeader());
+      setDeleteConfirm(null);
+      loadData();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Identity deletion aborted.');
     }
   };
 
@@ -371,9 +331,39 @@ export default function SuperAdmin() {
     localStorage.removeItem(SUPERADMIN_TOKEN_KEY);
     setAuthed(false);
     setDataLoaded(false);
-    setAdmins([]);
-    setUsers([]);
   };
+
+  // ── Cell Editing Engine ──────────────────────────────────────────────────
+  const startEditing = (rowId, colName, currentValue) => {
+    setEditingCell({ rowId, colName });
+    const trackingKey = `${rowId}::${colName}`;
+    setEditValue(editedCells[trackingKey] !== undefined ? editedCells[trackingKey] : (currentValue ?? ''));
+    setTimeout(() => {
+      if (cellInputRef.current) cellInputRef.current.focus();
+    }, 50);
+  };
+
+  const commitCellEdit = () => {
+    if (!editingCell) return;
+    const { rowId, colName } = editingCell;
+    const trackingKey = `${rowId}::${colName}`;
+
+    const originalRow = tableRows.find(r => r.id === rowId);
+    const originalValue = originalRow ? originalRow[colName] : undefined;
+
+    if (String(editValue) !== String(originalValue ?? '')) {
+      setEditedCells(prev => ({ ...prev, [trackingKey]: editValue }));
+    } else {
+      setEditedCells(prev => {
+        const next = { ...prev };
+        delete next[trackingKey];
+        return next;
+      });
+    }
+    setEditingCell(null);
+  };
+
+  const cancelCellEdit = () => setEditingCell(null);
 
   useEffect(() => {
     if (authed) {
@@ -382,697 +372,717 @@ export default function SuperAdmin() {
     }
   }, [authed]);
 
-  const displayData = tab === 'admins' ? admins : users;
-  const tableMinWidth = Math.max(960, (tableCols.length + 2) * 180);
+  useEffect(() => {
+    if (selectedTable) {
+      loadTableData(selectedTable, 1);
+    }
+  }, [selectedTable]);
 
-  // ── Neon Styled Dark Theme Sheet Styles ──────────────────────────────
-  const NeonStyle = {
-    appContainer: {
-      minHeight: '100vh',
-      backgroundColor: '#070708',
-      backgroundImage: 'radial-gradient(ellipse at top, rgba(0, 229, 153, 0.03) 0%, transparent 60%)',
-      fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      color: '#f3f4f6',
-      padding: '32px'
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (editingCell && cellInputRef.current && !cellInputRef.current.contains(e.target)) {
+        commitCellEdit();
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [editingCell, editValue]);
+
+  // ── Theme Style Matrix (Supabase / Neon Design Language) ────────────────
+  const styles = {
+    wrapper: {
+      backgroundColor: '#141414',
+      color: '#dedede',
+      height: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     },
-    panelCard: {
-      background: '#0c0d10',
-      border: '1px solid #1f2128',
-      borderRadius: '12px',
-      boxShadow: '0 4px 30px rgba(0,0,0,0.5)',
-      overflow: 'hidden'
+    banner: {
+      backgroundColor: '#2e0a0d',
+      borderBottom: '1px solid #7f1d1d',
+      color: '#FCE3EB',
+      padding: '8px 16px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      fontSize: '12.5px',
+      zIndex: 10
     },
-    input: {
-      width: '100%',
-      backgroundColor: '#14161a',
-      border: '1px solid #2a2d35',
-      borderRadius: '8px',
-      padding: '10px 14px',
-      color: '#ffffff',
-      fontSize: '14px',
-      outline: 'none',
-      transition: 'all 0.2s ease',
-      boxSizing: 'border-box'
+    bannerLeft: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '12px'
     },
-    btnPrimary: {
-      padding: '10px 20px',
-      background: 'linear-gradient(135deg, #00e599 0%, #00b377 100%)',
-      border: 'none',
-      borderRadius: '8px',
-      color: '#070708',
-      fontSize: '13.5px',
-      fontWeight: '600',
-      cursor: 'pointer',
-      display: 'inline-flex',
+    bannerTag: {
+      backgroundColor: 'rgba(239, 68, 68, 0.2)',
+      border: '1px solid rgba(239, 68, 68, 0.4)',
+      color: '#fca5a5',
+      padding: '2px 6px',
+      borderRadius: '4px',
+      fontWeight: '700',
+      fontSize: '10px',
+      letterSpacing: '0.05em'
+    },
+    header: {
+      backgroundColor: '#111111',
+      borderBottom: '1px solid #2e2e2e',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '0 20px',
+      height: '56px',
+      flexShrink: 0
+    },
+    breadcrumbs: {
+      display: 'flex',
       alignItems: 'center',
       gap: '8px',
-      boxShadow: '0 4px 14px rgba(0, 229, 153, 0.2)',
-      transition: 'all 0.15s ease'
+      fontSize: '13.5px'
     },
-    btnSecondary: {
-      padding: '10px 16px',
-      background: '#14161a',
-      border: '1px solid #2a2d35',
-      borderRadius: '8px',
-      color: '#9ca3af',
-      fontSize: '13px',
-      fontWeight: '500',
-      cursor: 'pointer',
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '6px',
-      transition: 'all 0.15s ease'
-    },
-    btnDanger: {
-      padding: '10px 16px',
-      background: 'rgba(239, 68, 68, 0.1)',
-      border: '1px solid rgba(239, 68, 68, 0.2)',
-      borderRadius: '8px',
-      color: '#f87171',
-      fontSize: '13px',
+    badge: {
+      backgroundColor: '#2a2a2a',
+      color: '#34D59A',
+      fontSize: '10px',
       fontWeight: '600',
-      cursor: 'pointer',
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '6px',
-      transition: 'all 0.15s ease'
+      padding: '2px 6px',
+      borderRadius: '4px',
+      border: '1px solid rgba(52, 213, 154, 0.2)',
+      textTransform: 'uppercase'
     },
-    tabBtn: (active) => ({
-      padding: '14px 20px',
+    layoutBody: {
+      display: 'flex',
+      flex: 1,
+      overflow: 'hidden'
+    },
+    sidebar: {
+      width: '240px',
+      backgroundColor: '#141414',
+      borderRight: '1px solid #2e2e2e',
+      padding: '20px 8px',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+      flexShrink: 0
+    },
+    catalogSidebar: {
+      width: '250px',
+      borderRight: '1px solid #2e2e2e',
+      backgroundColor: '#111111',
+      display: 'flex',
+      flexDirection: 'column',
+      flexShrink: 0
+    },
+    searchBox: {
+      display: 'flex',
+      alignItems: 'center',
+      padding: '12px',
+      borderBottom: '1px solid #2e2e2e',
+      gap: '8px',
+      color: '#888888'
+    },
+    searchInput: {
       background: 'transparent',
       border: 'none',
-      borderBottom: active ? '2px solid #00e599' : '2px solid transparent',
-      color: active ? '#ffffff' : '#9ca3af',
-      fontSize: '13.5px',
-      fontWeight: active ? '600' : '400',
+      color: '#fff',
+      fontSize: '13px',
+      outline: 'none',
+      width: '100%'
+    },
+    catalogItems: {
+      flex: 1,
+      overflowY: 'auto',
+      padding: '8px'
+    },
+    workspace: {
+      flex: 1,
+      backgroundColor: '#191919',
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column'
+    },
+    toolbar: {
+      height: '56px',
+      borderBottom: '1px solid #2e2e2e',
+      backgroundColor: '#111111',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '0 20px',
+      flexShrink: 0
+    },
+    btnAccent: {
+      backgroundColor: '#34D59A',
+      color: '#111111',
+      border: 'none',
+      padding: '8px 14px',
+      borderRadius: '4px',
+      fontWeight: '600',
+      fontSize: '13px',
       cursor: 'pointer',
-      transition: 'all 0.2s ease'
-    }),
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '6px'
+    },
+    btnSecondary: {
+      backgroundColor: '#222222',
+      border: '1px solid #2e2e2e',
+      color: '#dedede',
+      padding: '8px 12px',
+      borderRadius: '4px',
+      fontSize: '13px',
+      cursor: 'pointer'
+    },
+    queryBuilder: {
+      backgroundColor: '#111111',
+      borderBottom: '1px solid #2e2e2e',
+      padding: '10px 20px',
+      display: 'flex',
+      gap: '10px',
+      alignItems: 'center',
+      flexWrap: 'wrap'
+    },
+    tableWrapper: {
+      flex: 1,
+      overflow: 'auto'
+    },
+    table: {
+      width: '100%',
+      borderCollapse: 'collapse',
+      fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+      fontSize: '12.5px'
+    },
     modalOverlay: {
       position: 'fixed',
       top: 0,
       left: 0,
       right: 0,
       bottom: 0,
-      background: 'rgba(5, 5, 5, 0.85)',
+      backgroundColor: 'rgba(5, 5, 5, 0.85)',
       backdropFilter: 'blur(8px)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 1000,
+      zIndex: 100,
       padding: '20px'
+    },
+    modalCard: {
+      backgroundColor: '#141414',
+      border: '1px solid #2e2e2e',
+      borderRadius: '12px',
+      padding: '24px',
+      width: '100%',
+      maxWidth: '460px',
+      boxShadow: '0 20px 80px rgba(0,0,0,0.6)'
     }
   };
 
-  // ── Authentication Protection Screen ───────────────────────────────────
+  const filteredTablesList = tableList.filter(t => t.toLowerCase().includes(tableSearch.toLowerCase()));
+
+  // ── Verification Protection Page View ──────────────────────────────────
   if (!authed) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#070708', padding: 20 }}>
-        <div style={{ width: '100%', maxWidth: 420 }}>
-          <div style={{ textAlign: 'center', marginBottom: 32 }}>
-            <div style={{ 
-              width: 52, height: 52, borderRadius: 12, 
-              background: 'linear-gradient(135deg, #00e599 0%, #0070f3 100%)', 
-              margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', 
-              fontSize: 22, fontWeight: 700, color: '#ffffff', boxShadow: '0 0 24px rgba(0, 229, 153, 0.3)' 
-            }}>S</div>
-            <h1 style={{ fontSize: '24px', fontWeight: 600, color: '#ffffff', margin: 0 }}>Superadmin Console</h1>
-            <p style={{ color: '#9ca3af', fontSize: '13.5px', marginTop: 8 }}>Cryptographically secure master utility workspace</p>
+      <div style={{ ...styles.wrapper, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundImage: 'radial-gradient(circle at top, rgba(52, 213, 154, 0.04) 0%, transparent 50%)', padding: '20px' }}>
+        <div style={{ width: '100%', maxWidth: '420px', backgroundColor: '#111111', border: '1px solid #2e2e2e', borderRadius: '12px', padding: '36px', textAlign: 'center', boxShadow: '0 20px 80px rgba(0,0,0,0.5)' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px', backgroundColor: 'rgba(52, 213, 154, 0.1)', border: '1px solid rgba(52, 213, 154, 0.3)', padding: '12px', borderRadius: '12px', boxShadow: '0 0 24px rgba(52, 213, 154, 0.2)' }}>
+            <svg width="24" height="24" viewBox="0 0 58 58" fill="none"><path d="M58 0.016V58L35.369 38.559V58H0V0L58 0.016zM7.11 50.96h21.15V23.111l22.631 19.826V7.054L7.11 7.042v43.918z" fill="#34D59A"/></svg>
           </div>
-
-          <div style={NeonStyle.panelCard}>
-            <div style={{ padding: '32px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: 24 }}>
-                <KeyIcon />
-                <h2 style={{ fontSize: '15px', fontWeight: 600, color: '#ffffff', margin: 0 }}>Challenge Authentication</h2>
+          <h1 style={{ fontSize: '22px', fontWeight: '700', color: '#fff', marginBottom: '8px' }}>Decrypt Console Terminal</h1>
+          <p style={{ fontSize: '13.5px', color: '#888888', lineHeight: '1.5', marginBottom: '30px' }}>Verify decryption credentials to access memory instances.</p>
+          
+          {error && <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#fca5a5', fontSize: '13px', padding: '10px 14px', borderRadius: '6px', marginBottom: '20px', textAlign: 'left' }}>{error}</div>}
+          
+          <form onSubmit={handleVerify}>
+            <div style={{ display: 'flex', flexDirection: 'column', textAlign: 'left', marginBottom: '24px' }}>
+              <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#888888', letterSpacing: '0.05em', marginBottom: '8px', fontWeight: '700' }}>Terminal Secret Key</label>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <span style={{ position: 'absolute', left: '14px', color: '#888888', display: 'flex', alignItems: 'center' }}><KeyIcon /></span>
+                <input 
+                  type="password" 
+                  value={secretKey} 
+                  onChange={e => setSecretKey(e.target.value)} 
+                  placeholder="••••••••••••" 
+                  required 
+                  onFocus={() => setActiveFocusField('login')}
+                  onBlur={() => setActiveFocusField(null)}
+                  style={{
+                    backgroundColor: '#191919',
+                    border: '1px solid #2e2e2e',
+                    borderColor: activeFocusField === 'login' ? '#34D59A' : '#2e2e2e',
+                    boxShadow: activeFocusField === 'login' ? '0 0 12px rgba(52, 213, 154, 0.15)' : 'none',
+                    color: '#fff',
+                    fontSize: '14px',
+                    padding: '12px 14px 12px 42px',
+                    borderRadius: '6px',
+                    outline: 'none',
+                    width: '100%',
+                    transition: 'all 0.15s ease'
+                  }}
+                />
               </div>
-
-              {error && (
-                <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '8px', padding: '12px 16px', color: '#f87171', fontSize: '13px', marginBottom: 20 }}>
-                  {error}
-                </div>
-              )}
-
-              <form onSubmit={handleVerify}>
-                <div style={{ marginBottom: 24 }}>
-                  <label style={{ display: 'block', fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, fontWeight: 600 }}>Master Secret Token</label>
-                  <input 
-                    type="password" 
-                    value={secretKey} 
-                    onChange={e => setSecretKey(e.target.value)} 
-                    required
-                    style={NeonStyle.input} 
-                    placeholder="••••••••••••••••••••••••" 
-                    onFocus={e => {
-                      e.target.style.borderColor = '#00e599';
-                      e.target.style.boxShadow = '0 0 12px rgba(0, 229, 153, 0.15)';
-                    }}
-                    onBlur={e => {
-                      e.target.style.borderColor = '#2a2d35';
-                      e.target.style.boxShadow = 'none';
-                    }}
-                  />
-                </div>
-                <button 
-                  type="submit" 
-                  disabled={loading} 
-                  style={{ ...NeonStyle.btnPrimary, width: '100%', justifyContent: 'center' }}
-                  onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
-                  onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-                >
-                  {loading ? 'Validating Token...' : 'Unlock Workspace'}
-                </button>
-              </form>
             </div>
-          </div>
+            <button type="submit" disabled={loading} style={{ width: '100%', backgroundColor: '#34D59A', color: '#111', fontWeight: '700', border: 'none', fontSize: '14px', padding: '12px', borderRadius: '6px', cursor: 'pointer' }}>
+              {loading ? 'Initializing Decryption...' : 'Connect to Instance'}
+            </button>
+          </form>
         </div>
       </div>
     );
   }
 
-  // ── Standard Superadmin Portal Interface ───────────────────────────────
+  // ── Standard Master Console Terminal View ────────────────────────────────
   return (
-    <div style={NeonStyle.appContainer}>
+    <div style={styles.wrapper}>
       
-      {/* Header Grid */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32, gap: '24px', flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{ fontSize: '22px', fontWeight: 600, color: '#ffffff', margin: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ 
-              width: 32, height: 32, borderRadius: '8px', 
-              background: 'linear-gradient(135deg, #00e599 0%, #0070f3 100%)', 
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', 
-              fontSize: '15px', fontWeight: 700, color: '#ffffff' 
-            }}>S</span>
-            Superadmin
-          </h1>
-          <p style={{ color: '#9ca3af', fontSize: '13px', marginTop: 6, margin: 0 }}>System configuration and arbitrary database catalog manipulation panel.</p>
+      {/* Dynamic Master State Banner */}
+      <div style={styles.banner}>
+        <div style={styles.bannerLeft}>
+          <span style={styles.bannerTag}>SQL ENGINE</span>
+          <span>Operations write dynamically. Unsaved modifications: <strong>{Object.entries(editedCells).length}</strong></span>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <a href="/" style={{ ...NeonStyle.btnSecondary, textDecoration: 'none' }}>&larr; Back to App</a>
-          <button onClick={handleLogout} style={NeonStyle.btnDanger}>
-            <LogOutIcon /> Lock Terminal
-          </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {Object.entries(editedCells).length > 0 && (
+            <button onClick={saveTableChanges} style={{ backgroundColor: '#34D59A', color: '#111', border: 'none', fontSize: '11px', fontWeight: '700', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer' }}>
+              Save Changes
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Primary Tab Workspace Selection Bar */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: 24, borderBottom: '1px solid #1f2128' }}>
-        <button style={NeonStyle.tabBtn(tab === 'admins')} onClick={() => setTab('admins')}>
-          Administrators & Managers ({admins.length})
-        </button>
-        <button style={NeonStyle.tabBtn(tab === 'all-users')} onClick={() => setTab('all-users')}>
-          All Directory Users ({users.length})
-        </button>
-        <button style={NeonStyle.tabBtn(tab === 'sql')} onClick={() => setTab('sql')}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><DatabaseIcon /> SQL Workspace</span>
-        </button>
-      </div>
+      {/* Main breadcrumb header */}
+      <header style={styles.header}>
+        <div style={styles.breadcrumbs}>
+          <svg width="20" height="20" viewBox="0 0 58 58" fill="none"><path d="M58 0.016V58L35.369 38.559V58H0V0L58 0.016zM7.11 50.96h21.15V23.111l22.631 19.826V7.054L7.11 7.042v43.918z" fill="#34D59A"/></svg>
+          <span style={{ color: '#555555' }}>/</span>
+          <span>Noman Console</span>
+          <span style={styles.badge}>Live</span>
+          <span style={{ color: '#555555' }}>/</span>
+          <span style={{ fontWeight: '600', color: '#fff' }}>Tables Workspace</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <span style={{ fontSize: '12px', color: '#34D59A' }}>● Terminal Operational</span>
+          <button onClick={handleLogout} style={{ background: 'transparent', border: '1px solid #2e2e2e', color: '#dedede', padding: '6px 12px', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>Exit Terminal</button>
+        </div>
+      </header>
 
-      {/* Directory Management Workspaces */}
-      {(tab === 'admins' || tab === 'all-users') && (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <h3 style={{ fontSize: '15px', fontWeight: 600, margin: 0 }}>
-              {tab === 'admins' ? 'Administrative Accounts' : 'Complete Directory User Listing'}
-            </h3>
-            {tab === 'admins' && (
-              <button onClick={() => setShowCreate(true)} style={NeonStyle.btnPrimary}>
-                <PlusIcon /> Create Admin
-              </button>
-            )}
+      <div style={styles.layoutBody}>
+        
+        {/* Navigation Sidebar panel */}
+        <aside style={styles.sidebar}>
+          <div>
+            <div style={{ fontSize: '10px', textTransform: 'uppercase', color: '#888888', letterSpacing: '0.1em', paddingLeft: '10px', marginBottom: '8px', fontWeight: '700' }}>System Config</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '24px' }}>
+              <button onClick={() => setTab('admins')} style={{ display: 'block', width: '100%', textAlign: 'left', background: tab === 'admins' ? 'rgba(255,255,255,0.06)' : 'transparent', border: 'none', color: tab === 'admins' ? '#34D59A' : '#999', padding: '8px 12px', fontSize: '13.5px', borderRadius: '6px', cursor: 'pointer', fontWeight: tab === 'admins' ? '600' : '400' }}>Admins & Managers</button>
+              <button onClick={() => setTab('all-users')} style={{ display: 'block', width: '100%', textAlign: 'left', background: tab === 'all-users' ? 'rgba(255,255,255,0.06)' : 'transparent', border: 'none', color: tab === 'all-users' ? '#34D59A' : '#999', padding: '8px 12px', fontSize: '13.5px', borderRadius: '6px', cursor: 'pointer', fontWeight: tab === 'all-users' ? '600' : '400' }}>Directory Users</button>
+            </div>
+
+            <div style={{ fontSize: '10px', textTransform: 'uppercase', color: '#888888', letterSpacing: '0.1em', paddingLeft: '10px', marginBottom: '8px', fontWeight: '700' }}>Database Engine</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <button onClick={() => setTab('tables')} style={{ display: 'block', width: '100%', textAlign: 'left', background: tab === 'tables' ? 'rgba(255,255,255,0.06)' : 'transparent', border: 'none', color: tab === 'tables' ? '#34D59A' : '#999', padding: '8px 12px', fontSize: '13.5px', borderRadius: '6px', cursor: 'pointer', fontWeight: tab === 'tables' ? '600' : '400' }}>Tables Data Explorer</button>
+              <button onClick={() => setTab('sql')} style={{ display: 'block', width: '100%', textAlign: 'left', background: tab === 'sql' ? 'rgba(255,255,255,0.06)' : 'transparent', border: 'none', color: tab === 'sql' ? '#34D59A' : '#999', padding: '8px 12px', fontSize: '13.5px', borderRadius: '6px', cursor: 'pointer', fontWeight: tab === 'sql' ? '600' : '400' }}>SQL Terminal Console</button>
+            </div>
           </div>
-
-          <div style={NeonStyle.panelCard}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-              <thead>
-                <tr style={{ background: '#0e1013', borderBottom: '1px solid #1f2128' }}>
-                  <th style={{ padding: '16px 20px', fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', fontWeight: 600 }}>Name</th>
-                  <th style={{ padding: '16px 20px', fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', fontWeight: 600 }}>Email Address</th>
-                  <th style={{ padding: '16px 20px', fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', fontWeight: 600 }}>Role Constraint</th>
-                  <th style={{ padding: '16px 20px', fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', fontWeight: 600 }}>Sales Cycle Trigger</th>
-                  <th style={{ padding: '16px 20px', fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', fontWeight: 600 }}>Registration Date</th>
-                  <th style={{ padding: '16px 20px', fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', fontWeight: 600, textAlign: 'right' }}>Management</th>
-                </tr>
-              </thead>
-              <tbody>
-                {displayData.map((u) => (
-                  <tr key={u.id} style={{ borderBottom: '1px solid #14161a', transition: 'background-color 0.15s ease' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.01)'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-                    <td style={{ padding: '16px 20px', color: '#ffffff', fontSize: '14px', fontWeight: 500 }}>{u.name}</td>
-                    <td style={{ padding: '16px 20px', color: '#9ca3af', fontSize: '13.5px' }}>{u.email}</td>
-                    <td style={{ padding: '16px 20px' }}>
-                      <span style={{
-                        padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase',
-                        background: u.role === 'admin' ? 'rgba(0, 229, 153, 0.08)' : u.role === 'manager' ? 'rgba(0, 112, 243, 0.08)' : 'rgba(156, 163, 175, 0.08)',
-                        color: u.role === 'admin' ? '#00e599' : u.role === 'manager' ? '#3b82f6' : '#9ca3af',
-                        border: `1px solid ${u.role === 'admin' ? 'rgba(0, 229, 153, 0.2)' : u.role === 'manager' ? 'rgba(0, 112, 243, 0.2)' : 'rgba(156, 163, 175, 0.2)'}`
-                      }}>{u.role}</span>
-                    </td>
-                    <td style={{ padding: '16px 20px', color: '#9ca3af', fontSize: '13px' }}>Day {u.sales_cycle_start} of month</td>
-                    <td style={{ padding: '16px 20px', color: '#6b7280', fontSize: '13px' }}>{u.created_at ? new Date(u.created_at + 'Z').toLocaleDateString() : 'Original Seed'}</td>
-                    <td style={{ padding: '16px 20px', textAlign: 'right' }}>
-                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                        <button onClick={() => { setPwModal(u); setNewPw(''); setPwMsg(''); }} style={NeonStyle.btnSecondary}>Reset Password</button>
-                        <button onClick={() => setDeleteConfirm(u)} style={NeonStyle.btnDanger}>Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {displayData.length === 0 && (
-                  <tr>
-                    <td colSpan={6} style={{ padding: '48px', textAlign: 'center', color: '#6b7280', fontSize: '14px' }}>
-                      No record matches returned.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {/* Interactive Database SQL Execution Workspace */}
-      {tab === 'sql' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '24px', alignItems: 'start' }}>
           
-          {/* Tables Side Panel Navigation */}
-          <div style={{ ...NeonStyle.panelCard, padding: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <span style={{ fontSize: '12px', fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase' }}>Database Catalog</span>
-              <button onClick={loadTableList} style={{ ...NeonStyle.btnSecondary, padding: '4px 8px' }} title="Reload Catalog">
-                <RefreshIcon />
-              </button>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '540px', overflowY: 'auto' }}>
-              {tableList.map(table => (
-                <button 
-                  key={table} 
-                  onClick={() => { setSortBy(''); setSortDir('ASC'); loadTableData(table, 1, '', 'ASC'); }}
-                  style={{
-                    width: '100%', textAlign: 'left', border: 'none', borderRadius: '6px',
-                    padding: '10px 12px', cursor: 'pointer', fontSize: '13px',
-                    background: table === selectedTable ? 'rgba(0, 229, 153, 0.08)' : 'transparent', 
-                    color: table === selectedTable ? '#00e599' : '#9ca3af',
-                    fontWeight: table === selectedTable ? '600' : '400',
-                    borderLeft: table === selectedTable ? '2px solid #00e599' : '2px solid transparent',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={e => { if (table !== selectedTable) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.02)'; }}
-                  onMouseLeave={e => { if (table !== selectedTable) e.currentTarget.style.backgroundColor = 'transparent'; }}
-                >
-                  {table}
-                </button>
-              ))}
-              {tableList.length === 0 && (
-                <span style={{ color: '#6b7280', fontSize: '13px', padding: '12px 0' }}>No user tables defined.</span>
-              )}
-            </div>
+          <div style={{ backgroundColor: '#111111', border: '1px solid #2e2e2e', padding: '12px', borderRadius: '6px', fontSize: '12px' }}>
+            <h4 style={{ color: '#fff', fontSize: '12.5px', marginBottom: '4px', margin: 0 }}>SQLite Controller</h4>
+            <p style={{ color: '#888888', margin: '4px 0 0 0', lineHeight: '1.4' }}>Bypassing standard REST constraints allows direct database manipulations.</p>
           </div>
+        </aside>
 
-          {/* Table Data Workspace */}
-          <div style={{ ...NeonStyle.panelCard, padding: '24px', display: 'flex', flexDirection: 'column', minHeight: '680px' }}>
-            
-            {/* Control Bar Actions */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap' }}>
-              <div>
-                <div style={{ fontSize: '16px', fontWeight: 600, color: '#ffffff' }}>{selectedTable || 'No Database Entity Selected'}</div>
-                <div style={{ fontSize: '12.5px', color: '#9ca3af', marginTop: 4 }}>
-                  {selectedTable ? `${tableTotal.toLocaleString()} structures captured.` : 'Select catalogs to load arbitrary database sheets.'}
+        {/* Database catalog middle sidebar (visible only inside catalog view) */}
+        {tab === 'tables' && (
+          <aside style={styles.catalogSidebar}>
+            <div style={styles.searchBox}>
+              <SearchIcon />
+              <input type="text" placeholder="Search schema..." value={tableSearch} onChange={e => setTableSearch(e.target.value)} style={styles.searchInput} />
+            </div>
+            <div style={styles.catalogItems}>
+              {filteredTablesList.map(tbl => (
+                <div 
+                  key={tbl} 
+                  onClick={() => setSelectedTable(tbl)} 
+                  onMouseEnter={() => setSidebarHover(tbl)}
+                  onMouseLeave={() => setSidebarHover(null)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    color: selectedTable === tbl ? '#fff' : '#999',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    backgroundColor: selectedTable === tbl ? 'rgba(255,255,255,0.05)' : (sidebarHover === tbl ? 'rgba(255,255,255,0.02)' : 'transparent'),
+                    borderLeft: selectedTable === tbl ? '2px solid #34D59A' : '2px solid transparent',
+                    borderRadius: selectedTable === tbl ? '0 6px 6px 0' : '6px',
+                    transition: 'all 0.1s ease',
+                    fontWeight: selectedTable === tbl ? '600' : '400'
+                  }}
+                >
+                  <GridIcon />
+                  <span>{tbl}</span>
+                </div>
+              ))}
+            </div>
+          </aside>
+        )}
+
+        {/* Primary Interactive Workspace */}
+        <main style={styles.workspace}>
+          
+          {/* Active Tab Workspace: Tables Explorer */}
+          {tab === 'tables' && selectedTable && (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              
+              {/* Dynamic Toolbar */}
+              <div style={styles.toolbar}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <span style={styles.currentTableBadge}>{selectedTable}</span>
+                  <span style={{ fontSize: '11.5px', color: '#888888', backgroundColor: '#222', padding: '2px 6px', borderRadius: '4px', marginLeft: '12px' }}>{tableTotal} records matching</span>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button onClick={openAddRow} style={styles.btnAccent}>+ Insert Record</button>
+                  <button onClick={() => setShowAddColumn(true)} style={styles.btnSecondary}>Add Column</button>
+                  <button onClick={() => setShowBulkEdit(true)} disabled={selectedIds.size === 0} style={{ ...styles.btnSecondary, opacity: selectedIds.size === 0 ? 0.4 : 1 }}>Bulk Edit</button>
+                  <button onClick={handleDeleteSelected} disabled={selectedIds.size === 0} style={{ ...styles.btnSecondary, color: '#fca5a5', borderColor: 'rgba(239, 68, 68, 0.2)', opacity: selectedIds.size === 0 ? 0.4 : 1 }}>Drop Records</button>
+                  <button onClick={handleExport} style={styles.btnSecondary}>CSV Extract</button>
                 </div>
               </div>
-              
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <button onClick={() => setShowRawSql(false)} style={{ ...NeonStyle.btnSecondary, background: !showRawSql ? 'rgba(0, 229, 153, 0.08)' : '#14161a', color: !showRawSql ? '#00e599' : '#9ca3af', borderColor: !showRawSql ? 'rgba(0, 229, 153, 0.2)' : '#2a2d35' }}>Table Grid</button>
-                <button onClick={() => setShowRawSql(true)} style={{ ...NeonStyle.btnSecondary, background: showRawSql ? 'rgba(0, 229, 153, 0.08)' : '#14161a', color: showRawSql ? '#00e599' : '#9ca3af', borderColor: showRawSql ? 'rgba(0, 229, 153, 0.2)' : '#2a2d35' }}><TerminalIcon /> Raw SQL Compiler</button>
-                
-                {selectedTable && !showRawSql && (
-                  <>
-                    <button onClick={() => loadTableData(selectedTable, tablePage)} style={NeonStyle.btnSecondary} title="Reload records"><RefreshIcon /></button>
-                    <button onClick={openAddRow} style={NeonStyle.btnSecondary}><PlusIcon /> Record</button>
-                    <button onClick={() => setShowAddColumn(true)} style={NeonStyle.btnSecondary}>Alter Table</button>
-                    <button onClick={() => setShowBulkEdit(true)} disabled={selectedIds.size === 0} style={{ ...NeonStyle.btnSecondary, opacity: selectedIds.size === 0 ? 0.5 : 1 }}>Bulk Edit</button>
-                    <button onClick={handleDeleteSelected} disabled={selectedIds.size === 0} style={{ ...NeonStyle.btnDanger, opacity: selectedIds.size === 0 ? 0.5 : 1 }}><TrashIcon /> Delete Selected</button>
-                    <button onClick={() => handleExport(true)} disabled={selectedIds.size === 0} style={{ ...NeonStyle.btnSecondary, opacity: selectedIds.size === 0 ? 0.5 : 1 }}><ExportIcon /> CSV Extract</button>
-                    <button onClick={() => handleExport(false)} style={NeonStyle.btnSecondary}><ExportIcon /> Export All</button>
-                    <button onClick={saveTableChanges} disabled={Object.keys(editedCells).length === 0} style={{ ...NeonStyle.btnPrimary, opacity: Object.keys(editedCells).length === 0 ? 0.6 : 1, cursor: Object.keys(editedCells).length === 0 ? 'not-allowed' : 'pointer' }}><SaveIcon /> Save Changes</button>
-                  </>
+
+              {/* Filtering layout parameters */}
+              <div style={styles.queryBuilder}>
+                <select value={filterCol} onChange={e => setFilterCol(e.target.value)} style={{ ...styles.searchInput, width: '180px', backgroundColor: '#141414', border: '1px solid #2e2e2e', padding: '6px 10px', borderRadius: '4px' }}>
+                  <option value="">Match Column...</option>
+                  {(tableSchema.columns || []).map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                </select>
+                <select value={filterOp} onChange={e => setFilterOp(e.target.value)} style={{ ...styles.searchInput, width: '100px', backgroundColor: '#141414', border: '1px solid #2e2e2e', padding: '6px 10px', borderRadius: '4px' }}>
+                  <option value="=">=</option>
+                  <option value="!=">!=</option>
+                  <option value="LIKE">LIKE</option>
+                  <option value=">">&gt;</option>
+                  <option value="<">&lt;</option>
+                </select>
+                <input type="text" placeholder="Filtering value match string..." value={filterVal} onChange={e => setFilterVal(e.target.value)} style={{ ...styles.searchInput, flex: 1, backgroundColor: '#141414', border: '1px solid #2e2e2e', padding: '6px 10px', borderRadius: '4px' }} />
+                <button onClick={() => {
+                  if (!filterCol) return;
+                  setFiltersState([...filtersState, { column: filterCol, op: filterOp, value: filterVal }]);
+                  setFilterCol(''); setFilterVal('');
+                }} style={styles.btnSecondary}>Add Filter</button>
+                <button onClick={() => loadTableData(selectedTable, 1)} style={styles.btnAccent}>Match Schema</button>
+                <button onClick={() => { setFiltersState([]); loadTableData(selectedTable, 1); }} style={{ ...styles.btnSecondary, color: '#f87171' }}>Reset</button>
+              </div>
+
+              {/* Dynamic Filter conditions container */}
+              {filtersState.length > 0 && (
+                <div style={{ backgroundColor: '#111111', padding: '8px 20px', borderBottom: '1px solid #2e2e2e', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {filtersState.map((f, i) => (
+                    <div key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#191919', border: '1px solid #2e2e2e', borderRadius: '4px', padding: '4px 10px', fontSize: '12px' }}>
+                      <span style={{ color: '#888888' }}>{f.column} {f.op}</span>
+                      <strong style={{ color: '#34D59A' }}>"{f.value}"</strong>
+                      <span onClick={() => setFiltersState(filtersState.filter((_, idx) => idx !== i))} style={{ cursor: 'pointer', color: '#ef4444', marginLeft: '6px' }}>&times;</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* High-Fidelity Spreadsheet Data Grid View */}
+              <div style={styles.tableWrapper}>
+                <table style={styles.table}>
+                  <thead>
+                    <tr style={{ background: '#111111', borderBottom: '1px solid #2e2e2e' }}>
+                      <th style={{ width: '40px', textAlign: 'center', padding: '12px', borderRight: '1px solid #2e2e2e' }}>
+                        <input 
+                          type="checkbox" 
+                          onChange={e => {
+                            if (e.target.checked) setSelectedIds(new Set(tableRows.map(r => r.id)));
+                            else setSelectedIds(new Set());
+                          }} 
+                          checked={tableRows.length > 0 && selectedIds.size === tableRows.length} 
+                          style={{ accentColor: '#34D59A', transform: 'scale(1.1)' }}
+                        />
+                      </th>
+                      {tableCols.map(col => (
+                        <th key={col} onClick={() => {
+                          const nextDir = sortBy === col && sortDir === 'ASC' ? 'DESC' : 'ASC';
+                          setSortBy(col); setSortDir(nextDir);
+                          loadTableData(selectedTable, tablePage, col, nextDir);
+                        }} style={{ padding: '12px 16px', color: '#888888', borderRight: '1px solid #2e2e2e', cursor: 'pointer', userSelect: 'none', fontWeight: '500', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          {col} <span style={{ color: '#555555', fontSize: '9.5px', marginLeft: '4px' }}>{tableSchema.columns.find(c => c.name === col)?.type || 'class'}</span>
+                          {sortBy === col && (sortDir === 'ASC' ? ' ▴' : ' ▾')}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tableRows.map(row => (
+                      <tr key={row.id} style={{ borderBottom: '1px solid #2e2e2e' }}>
+                        <td style={{ textAlign: 'center', padding: '12px', borderRight: '1px solid #2e2e2e' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={selectedIds.has(row.id)} 
+                            onChange={e => {
+                              const next = new Set(selectedIds);
+                              if (e.target.checked) next.add(row.id); else next.delete(row.id);
+                              setSelectedIds(next);
+                            }} 
+                            style={{ accentColor: '#34D59A', transform: 'scale(1.1)' }}
+                          />
+                        </td>
+                        {tableCols.map(col => {
+                          const isId = col === 'id';
+                          const isEditing = editingCell && editingCell.rowId === row.id && editingCell.colName === col;
+                          const isFocused = focusedCell && focusedCell.rowId === row.id && focusedCell.colName === col;
+                          const trackingKey = `${row.id}::${col}`;
+                          const isDirty = editedCells[trackingKey] !== undefined;
+                          const displayValue = isDirty ? editedCells[trackingKey] : row[col];
+                          const cellHovered = hoveredCell && hoveredCell.rowId === row.id && hoveredCell.colName === col;
+
+                          return (
+                            <td 
+                              key={col} 
+                              onMouseEnter={() => !isId && setHoveredCell({ rowId: row.id, colName: col })}
+                              onMouseLeave={() => setHoveredCell(null)}
+                              onClick={() => !isId && setFocusedCell({ rowId: row.id, colName: col })}
+                              onDoubleClick={() => !isId && startEditing(row.id, col, row[col])}
+                              style={{
+                                borderRight: '1px solid #2e2e2e',
+                                position: 'relative',
+                                height: '40px',
+                                padding: 0,
+                                outline: isFocused ? '2px solid #34D59A' : 'none',
+                                outlineOffset: '-2px',
+                                zIndex: isFocused ? 5 : 1,
+                                backgroundColor: isDirty ? 'rgba(245, 158, 11, 0.04)' : 'transparent',
+                                cursor: isId ? 'default' : 'cell',
+                                transition: 'all 0.1s ease'
+                              }}
+                            >
+                              {/* Unsaved data corner flag */}
+                              {isDirty && !isEditing && (
+                                <div style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0, borderStyle: 'solid', borderWidth: '5px 5px 0 0', borderColor: '#f59e0b transparent transparent transparent' }} />
+                              )}
+
+                              {isEditing ? (
+                                <div style={{ display: 'flex', alignItems: 'center', width: '100%', height: '100%', position: 'absolute', top: 0, left: 0, background: '#090a0d', zIndex: 10, boxShadow: 'inset 0 0 0 2px #34D59A' }}>
+                                  <input 
+                                    ref={cellInputRef}
+                                    type="text" 
+                                    value={editValue} 
+                                    onChange={e => setEditValue(e.target.value)}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter') commitCellEdit();
+                                      if (e.key === 'Escape') cancelCellEdit();
+                                    }}
+                                    style={{ flex: 1, height: '100%', background: 'transparent', border: 'none', color: '#fff', fontFamily: '"JetBrains Mono", monospace', fontSize: '12.5px', padding: '0 14px', outline: 'none' }}
+                                  />
+                                  <div style={{ display: 'flex', gap: '3px', paddingRight: '8px' }}>
+                                    <button onClick={commitCellEdit} style={{ width: '22px', height: '22px', borderRadius: '4px', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#34D59A', color: '#111', cursor: 'pointer' }}><SaveIcon /></button>
+                                    <button onClick={cancelCellEdit} style={{ width: '22px', height: '22px', borderRadius: '4px', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#222', color: '#888', cursor: 'pointer' }}><CancelIcon /></button>
+                                  </div>
+                                  <div style={{ position: 'absolute', bottom: '-22px', left: 0, backgroundColor: '#090a0d', color: '#888', fontFamily: 'sans-serif', fontSize: '9px', padding: '2px 6px', border: '1px solid #2e2e2e', borderTop: 'none', borderRadius: '0 0 4px 4px', whiteSpace: 'nowrap', pointerEvents: 'none', boxShadow: '0 4px 6px rgba(0,0,0,0.3)' }}>Press Enter ↵ to commit, Esc to cancel</div>
+                                </div>
+                              ) : (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', height: '100%', padding: '10px 14px', boxSizing: 'border-box' }}>
+                                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, color: displayValue === null ? '#555' : 'inherit', fontStyle: displayValue === null ? 'italic' : 'normal' }}>
+                                    {displayValue === null ? 'NULL' : String(displayValue)}
+                                  </span>
+                                  {!isId && (cellHovered || isFocused) && (
+                                    <button 
+                                      onClick={() => startEditing(row.id, col, row[col])} 
+                                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#222', border: '1px solid #2e2e2e', color: '#888', borderRadius: '4px', width: '20px', height: '20px', cursor: 'pointer', padding: 0 }}
+                                      title="Edit Value"
+                                    >
+                                      <EditIcon />
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Data explorer footer pagination control */}
+              <div style={{ backgroundColor: '#111111', borderTop: '1px solid #2e2e2e', padding: '10px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '13px', color: '#888888', flexShrink: 0 }}>
+                <span>Page {tablePage} of {Math.max(1, Math.ceil(tableTotal / tableLimit))}</span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => loadTableData(selectedTable, Math.max(1, tablePage - 1))} disabled={tablePage <= 1} style={{ ...styles.btnSecondary, padding: '6px 12px', opacity: tablePage <= 1 ? 0.4 : 1 }}>Prev</button>
+                  <button onClick={() => loadTableData(selectedTable, tablePage + 1)} disabled={tablePage >= Math.ceil(tableTotal / tableLimit)} style={{ ...styles.btnSecondary, padding: '6px 12px', opacity: tablePage >= Math.ceil(tableTotal / tableLimit) ? 0.4 : 1 }}>Next</button>
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* User Directory Tab Views */}
+          {(tab === 'admins' || tab === 'all-users') && (
+            <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#fff', margin: 0 }}>{tab === 'admins' ? 'Administrators & Managers Workspace' : 'All Workspace Profiles'}</h2>
+                {tab === 'admins' && (
+                  <button onClick={() => setShowCreate(true)} style={styles.btnAccent}>+ Provision Account</button>
                 )}
               </div>
-            </div>
 
-            {tableMsg && (
-              <div style={{ background: 'rgba(0, 229, 153, 0.05)', border: '1px solid rgba(0, 229, 153, 0.15)', borderRadius: '6px', padding: '10px 14px', color: '#00e599', fontSize: '13px', marginBottom: 16 }}>
-                {tableMsg}
-              </div>
-            )}
-
-            {/* SQL Terminal Interface */}
-            {showRawSql ? (
-              <div>
-                <div style={{ position: 'relative', marginBottom: 12 }}>
-                  <textarea 
-                    value={rawSqlText} 
-                    onChange={e => setRawSqlText(e.target.value)} 
-                    style={{ 
-                      width: '100%', minHeight: '140px', padding: '14px', borderRadius: '8px', 
-                      background: '#090a0d', color: '#00e599', border: '1px solid #1f2128',
-                      fontFamily: '"JetBrains Mono", "Fira Code", monospace', fontSize: '13.5px', outline: 'none'
-                    }} 
-                  />
-                </div>
-                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginBottom: 16 }}>
-                  <button onClick={() => setRawSqlText('SELECT * FROM users LIMIT 50')} style={NeonStyle.btnSecondary}>Reset Default</button>
-                  <button onClick={handleRunRawSql} style={NeonStyle.btnPrimary}><TerminalIcon /> Execute SELECT</button>
-                </div>
-                
-                <div style={{ overflowX: 'auto', border: '1px solid #1f2128', borderRadius: '8px' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                    <thead>
-                      <tr style={{ background: '#0e1013', borderBottom: '1px solid #1f2128' }}>
-                        {(sqlCols || []).map(c => <th key={c} style={{ padding: '12px 14px', fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', fontFamily: '"JetBrains Mono", monospace' }}>{c}</th>)}
+              <div style={{ border: '1px solid #2e2e2e', backgroundColor: '#111111', borderRadius: '8px', overflow: 'hidden' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13.5px' }}>
+                  <thead>
+                    <tr style={{ background: '#161616', borderBottom: '1px solid #2e2e2e' }}>
+                      <th style={{ padding: '14px 18px', color: '#888888', fontWeight: '500' }}>Name</th>
+                      <th style={{ padding: '14px 18px', color: '#888888', fontWeight: '500' }}>Email ID</th>
+                      <th style={{ padding: '14px 18px', color: '#888888', fontWeight: '500' }}>Permission Scope</th>
+                      <th style={{ padding: '14px 18px', color: '#888888', fontWeight: '500' }}>Billing Activation</th>
+                      <th style={{ padding: '14px 18px', color: '#888888', fontWeight: '500' }}>Registration Date</th>
+                      <th style={{ padding: '14px 18px', color: '#888888', fontWeight: '500', textAlign: 'right' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(tab === 'admins' ? admins : users).map(usr => (
+                      <tr key={usr.id} style={{ borderBottom: '1px solid #222222' }}>
+                        <td style={{ padding: '14px 18px', color: '#fff', fontWeight: '500' }}>{usr.name}</td>
+                        <td style={{ padding: '14px 18px', color: '#999' }}>{usr.email}</td>
+                        <td style={{ padding: '14px 18px' }}>
+                          <span style={{
+                            padding: '3px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase',
+                            background: usr.role === 'admin' ? 'rgba(52, 213, 154, 0.08)' : 'rgba(59, 130, 246, 0.08)',
+                            color: usr.role === 'admin' ? '#34D59A' : '#3b82f6',
+                            border: `1px solid ${usr.role === 'admin' ? 'rgba(52, 213, 154, 0.2)' : 'rgba(59, 130, 246, 0.2)'}`
+                          }}>{usr.role}</span>
+                        </td>
+                        <td style={{ padding: '14px 18px', color: '#999' }}>Day {usr.sales_cycle_start} of month</td>
+                        <td style={{ padding: '14px 18px', color: '#666' }}>{usr.created_at ? new Date(usr.created_at).toLocaleDateString() : 'N/A'}</td>
+                        <td style={{ padding: '14px 18px', textAlign: 'right' }}>
+                          <button onClick={() => { setPwModal(usr); setNewPw(''); setPwMsg(''); }} style={{ ...styles.btnSecondary, marginRight: '8px', padding: '6px 10px', fontSize: '12px' }}>Reset Password</button>
+                          <button onClick={() => setDeleteConfirm(usr)} style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#fca5a5', padding: '6px 10px', borderRadius: '4px', fontSize: '12px', cursor: 'pointer' }}>Delete</button>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {(sqlRows || []).map((r, i) => (
-                        <tr key={i} style={{ borderBottom: '1px solid #14161a' }}>
-                          {(sqlCols || []).map(col => <td key={col} style={{ padding: '12px 14px', color: '#f3f4f6', fontSize: '13px', fontFamily: '"JetBrains Mono", monospace' }}>{String(r[col] ?? 'NULL')}</td>)}
-                        </tr>
-                      ))}
-                      {sqlRows.length === 0 && (
-                        <tr><td style={{ padding: '24px', color: '#6b7280', fontSize: '13px', textAlign: 'center' }}>Execute SELECT operations on terminal prompt above to display results.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ) : (
-              // Table Browse Grid
-              selectedTable && (
-                <div>
-                  
-                  {/* SQL Filters Panel */}
-                  <div style={{ padding: '16px', background: '#090a0d', border: '1px solid #1f2128', borderRadius: '8px', marginBottom: 16 }}>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <select style={{ ...NeonStyle.input, width: '150px' }} value={filterCol} onChange={e => setFilterCol(e.target.value)}>
-                        <option value="">Choose Column</option>
-                        {(tableSchema.columns || []).map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-                      </select>
-                      
-                      <select style={{ ...NeonStyle.input, width: '110px' }} value={filterOp} onChange={e => setFilterOp(e.target.value)}>
-                        <option value="=">=</option>
-                        <option value=">">&gt;</option>
-                        <option value="<">&lt;</option>
-                        <option value=">=">&gt;=</option>
-                        <option value="<=">&lt;=</option>
-                        <option value="!=">!=</option>
-                        <option value="LIKE">LIKE</option>
-                        <option value="IS">IS</option>
-                        <option value="IS NOT">IS NOT</option>
-                      </select>
+            </div>
+          )}
 
-                      {(() => {
-                        const meta = (tableSchema.columns || []).find(c => c.name === filterCol) || {};
-                        const t = (meta.type || '').toUpperCase();
-                        if (t.includes('INT')) return <input placeholder="Integer Value" style={{ ...NeonStyle.input, width: '160px' }} type="number" value={filterVal} onChange={e => setFilterVal(e.target.value)} />;
-                        if (t.includes('BOOL') || filterCol.toLowerCase().startsWith('is_')) return (
-                          <select value={filterVal} onChange={e => setFilterVal(e.target.value)} style={{ ...NeonStyle.input, width: '160px' }}>
-                            <option value="">NULL</option>
-                            <option value="1">TRUE</option>
-                            <option value="0">FALSE</option>
-                          </select>
-                        );
-                        return <input placeholder="Target string..." style={{ ...NeonStyle.input, width: '160px' }} value={filterVal} onChange={e => setFilterVal(e.target.value)} />;
-                      })()}
+          {/* Raw SQL compiler Terminal panel view */}
+          {tab === 'sql' && (
+            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#fff', margin: 0 }}>Playground Arbitrary Read Compiler</h2>
+                <button onClick={handleRunRawSql} style={styles.btnAccent}><TerminalIcon /> Execute SELECT Compiler</button>
+              </div>
 
-                      <select value={filterLogic} onChange={e => setFilterLogic(e.target.value)} style={{ ...NeonStyle.input, width: '80px' }}>
-                        <option value="AND">AND</option>
-                        <option value="OR">OR</option>
-                      </select>
+              <div style={{ border: '1px solid #2e2e2e', borderRadius: '8px', overflow: 'hidden', flexShrink: 0 }}>
+                <textarea 
+                  value={rawSqlText} 
+                  onChange={e => setRawSqlText(e.target.value)} 
+                  style={{ width: '100%', height: '140px', backgroundColor: '#111111', border: 'none', outline: 'none', color: '#34D59A', fontFamily: '"JetBrains Mono", monospace', fontSize: '13.5px', padding: '16px', lineHeight: '1.5', resize: 'vertical' }}
+                  placeholder="SELECT * FROM users LIMIT 10;"
+                />
+              </div>
 
-                      <button onClick={() => {
-                        if (!filterCol) return;
-                        addFilter({ column: filterCol, op: filterOp, value: filterVal });
-                        setFilterCol(''); setFilterVal('');
-                      }} style={NeonStyle.btnSecondary}>Add</button>
-                      
-                      <button onClick={applyFilters} style={NeonStyle.btnPrimary}>Apply SQL</button>
-                      <button onClick={() => { setFiltersState([]); loadTableData(selectedTable, 1); }} style={NeonStyle.btnDanger}>Clear All</button>
-                    </div>
-
-                    {filtersState.length > 0 && (
-                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
-                        {filtersState.map((f, i) => (
-                          <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#14161a', border: '1px solid #2a2d35', borderRadius: '4px', padding: '4px 10px', fontSize: '12px', color: '#f3f4f6' }}>
-                            <code>{f.column} {f.op} "{f.value}"</code>
-                            <button onClick={() => removeFilter(i)} style={{ border: 'none', background: 'transparent', color: '#ef4444', cursor: 'pointer', padding: 0 }}>&times;</button>
-                          </span>
-                        ))}
-                      </div>
+              <div style={{ flex: 1, marginTop: '24px', border: '1px solid #2e2e2e', backgroundColor: '#111111', borderRadius: '8px', overflow: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12.5px', fontFamily: '"JetBrains Mono", monospace' }}>
+                  <thead>
+                    <tr style={{ background: '#161616', borderBottom: '1px solid #2e2e2e' }}>
+                      {sqlCols.map(c => <th key={c} style={{ padding: '12px 14px', color: '#888888' }}>{c}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sqlRows.map((r, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid #222222' }}>
+                        {sqlCols.map(c => <td key={c} style={{ padding: '12px 14px', color: '#fff' }}>{String(r[c] ?? 'NULL')}</td>)}
+                      </tr>
+                    ))}
+                    {sqlRows.length === 0 && (
+                      <tr>
+                        <td colSpan={100} style={{ padding: '48px', color: '#666', textAlign: 'center', fontFamily: 'sans-serif' }}>Execute database select queries above. Writes are prohibited.</td>
+                      </tr>
                     )}
-                  </div>
-
-                  {/* Absolute Records Grid */}
-                  <div style={{ overflowX: 'auto', border: '1px solid #1f2128', borderRadius: '8px' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: tableMinWidth, tableLayout: 'fixed' }}>
-                      <thead>
-                        <tr style={{ background: '#0e1013', borderBottom: '1px solid #1f2128' }}>
-                          <th style={{ width: '48px', padding: '14px', textAlign: 'center' }}>
-                            <input 
-                              type="checkbox" 
-                              onChange={e => {
-                                if (e.target.checked) setSelectedIds(new Set(tableRows.map(r => r.id)));
-                                else setSelectedIds(new Set());
-                              }} 
-                              checked={tableRows.length > 0 && selectedIds.size === tableRows.length} 
-                              style={{ accentColor: '#00e599', transform: 'scale(1.15)' }}
-                            />
-                          </th>
-                          {tableCols.map(col => (
-                            <th 
-                              key={col} 
-                              onClick={() => handleSortColumn(col)} 
-                              style={{ padding: '14px', fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', cursor: 'pointer', width: '180px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                            >
-                              {col}{sortBy === col ? (sortDir === 'ASC' ? ' ▴' : ' ▾') : ''}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {tableRows.map(row => (
-                          <tr key={row.id} style={{ borderBottom: '1px solid #14161a', transition: 'background-color 0.1s ease' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.01)'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-                            <td style={{ padding: '14px', textAlign: 'center' }}>
-                              <input 
-                                type="checkbox" 
-                                checked={selectedIds.has(row.id)} 
-                                onChange={e => {
-                                  const copy = new Set(selectedIds);
-                                  if (e.target.checked) copy.add(row.id); else copy.delete(row.id);
-                                  setSelectedIds(copy);
-                                }} 
-                                style={{ accentColor: '#00e599', transform: 'scale(1.15)' }}
-                              />
-                            </td>
-                            {tableCols.map(col => {
-                              const key = `${row.id}::${col}`;
-                              const isId = col === 'id';
-                              const colMeta = (tableSchema.columns || []).find(c => c.name === col) || {};
-                              const type = (colMeta.type || '').toUpperCase();
-                              const fk = (tableSchema.foreignKeys || []).find(f => f.from === col);
-                              
-                              return (
-                                <td key={col} style={{ padding: '10px 14px', color: '#f3f4f6', fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                  {isId ? (
-                                    <span style={{ color: '#6b7280', fontFamily: '"JetBrains Mono", monospace' }}>{row[col]}</span>
-                                  ) : (
-                                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                      <div style={{ flex: 1 }} onDoubleClick={e => {
-                                        const node = e.currentTarget.querySelector('input,select');
-                                        if (node) {
-                                          node.disabled = false;
-                                          node.readOnly = false;
-                                          node.focus();
-                                        }
-                                      }}>
-                                        { (type.includes('BOOL') || col.toLowerCase().startsWith('is_')) ? (
-                                          <select 
-                                            defaultValue={row[col] == null ? '' : String(row[col])} 
-                                            disabled 
-                                            style={{ width: '100%', background: 'transparent', border: '1px solid transparent', color: '#f3f4f6', outline: 'none', cursor: 'pointer' }} 
-                                            onBlur={e => { 
-                                              if (String(e.target.value) !== String(row[col])) setEditedCells(prev => ({ ...prev, [key]: e.target.value })); 
-                                              e.target.disabled = true; 
-                                            }}
-                                          >
-                                            <option value="">NULL</option>
-                                            <option value="1">TRUE</option>
-                                            <option value="0">FALSE</option>
-                                          </select>
-                                        ) : (
-                                          <input 
-                                            type="text" 
-                                            defaultValue={row[col] ?? ''} 
-                                            readOnly 
-                                            style={{ width: '100%', background: 'transparent', border: '1px solid transparent', color: '#f3f4f6', outline: 'none' }} 
-                                            onBlur={e => { 
-                                              if (String(e.target.value) !== String(row[col])) setEditedCells(prev => ({ ...prev, [key]: e.target.value })); 
-                                              e.target.readOnly = true; 
-                                            }} 
-                                          />
-                                        )}
-                                      </div>
-                                      {fk && (
-                                        <button onClick={() => openFkModal(fk, row[col], row.id, col)} style={{ padding: '4px 8px', borderRadius: '4px', background: '#14161a', color: '#00e599', border: '1px solid rgba(0,229,153,0.15)', cursor: 'pointer', fontSize: '10px' }}>FK</button>
-                                      )}
-                                    </div>
-                                  )}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {/* Table Footer Controls */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
-                    <div style={{ color: '#6b7280', fontSize: '13px' }}>Page {tablePage} of {Math.max(1, Math.ceil(tableTotal / tableLimit))}</div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => loadTableData(selectedTable, Math.max(1, tablePage - 1))} disabled={tablePage <= 1} style={{ ...NeonStyle.btnSecondary, padding: '6px 12px' }}>Previous</button>
-                      <button onClick={() => loadTableData(selectedTable, tablePage + 1)} disabled={tablePage >= Math.ceil(tableTotal / tableLimit)} style={{ ...NeonStyle.btnSecondary, padding: '6px 12px' }}>Next</button>
-                    </div>
-                  </div>
-                </div>
-              )
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ── Add Column Modal ────────────────────────────────────────────────── */}
-      {showAddColumn && (
-        <div style={NeonStyle.modalOverlay}>
-          <div style={{ ...NeonStyle.panelCard, width: '100%', maxWidth: '440px', padding: '24px' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', color: '#ffffff' }}>Alter Table Schema: {selectedTable}</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 6 }}>Column Identifier</label>
-                <input value={newCol.name} onChange={e => setNewCol(c => ({ ...c, name: e.target.value }))} style={NeonStyle.input} placeholder="e.g. tracking_hash" />
+                  </tbody>
+                </table>
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 6 }}>primitive storage class</label>
-                <select value={newCol.type} onChange={e => setNewCol(c => ({ ...c, type: e.target.value }))} style={NeonStyle.input}>
+            </div>
+          )}
+
+        </main>
+      </div>
+
+      {/* ── Alter Table Schema Modal ────────────────────────────────────────── */}
+      {showAddColumn && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalCard}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', color: '#fff' }}>Schema Migration Tool</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#888888', letterSpacing: '0.05em', marginBottom: '6px', fontWeight: '700' }}>Column Identifier Name</label>
+                <input type="text" value={newCol.name} onChange={e => setNewCol({ ...newCol, name: e.target.value })} placeholder="e.g. storage_hash" style={{ backgroundColor: '#191919', border: '1px solid #2e2e2e', color: '#fff', fontSize: '13.5px', padding: '10px 14px', borderRadius: '6px', outline: 'none' }} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#888888', letterSpacing: '0.05em', marginBottom: '6px', fontWeight: '700' }}>Primitive Datatype</label>
+                <select value={newCol.type} onChange={e => setNewCol({ ...newCol, type: e.target.value })} style={{ backgroundColor: '#191919', border: '1px solid #2e2e2e', color: '#fff', fontSize: '13.5px', padding: '10px 14px', borderRadius: '6px', outline: 'none' }}>
                   <option value="TEXT">TEXT</option>
                   <option value="INTEGER">INTEGER</option>
                   <option value="REAL">REAL (FLOAT)</option>
                   <option value="BLOB">BLOB</option>
                 </select>
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 6 }}>Constraint Nullability</label>
-                <select value={newCol.nullable ? '1' : '0'} onChange={e => setNewCol(c => ({ ...c, nullable: e.target.value === '1' }))} style={NeonStyle.input}>
-                  <option value="1">ALLOW NULLS (DEFAULT)</option>
-                  <option value="0">NOT NULL</option>
-                </select>
-              </div>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
-              <button onClick={() => setShowAddColumn(false)} style={NeonStyle.btnSecondary}>Cancel</button>
-              <button onClick={handleAddColumn} style={NeonStyle.btnPrimary}>Apply Schema Migration</button>
+              <button onClick={() => setShowAddColumn(false)} style={styles.btnSecondary}>Cancel</button>
+              <button onClick={handleAddColumn} style={styles.btnAccent}>Apply Column Migration</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Bulk Edit Modal ──────────────────────────────────────────────────── */}
+      {/* ── Bulk Edit Modal ─────────────────────────────────────────────────── */}
       {showBulkEdit && (
-        <div style={NeonStyle.modalOverlay}>
-          <div style={{ ...NeonStyle.panelCard, width: '100%', maxWidth: '460px', padding: '24px' }}>
-            <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', color: '#ffffff' }}>Bulk Execute Update ({selectedIds.size} records selected)</h3>
-            <p style={{ color: '#9ca3af', fontSize: '13px', margin: '0 0 20px 0' }}>Applies identical parameter values across multiple columns in database.</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 6 }}>Target Column</label>
-                <select value={bulkEditColumn} onChange={e => setBulkEditColumn(e.target.value)} style={NeonStyle.input}>
-                  <option value="">Choose Column</option>
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalCard}>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', color: '#fff' }}>Bulk Write Operation ({selectedIds.size} lines)</h3>
+            <p style={{ color: '#888888', fontSize: '13px', margin: '0 0 20px 0' }}>Write structural override updates across selected structures.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#888888', letterSpacing: '0.05em', marginBottom: '6px', fontWeight: '700' }}>Destination Column</label>
+                <select value={bulkEditColumn} onChange={e => setBulkEditColumn(e.target.value)} style={{ backgroundColor: '#191919', border: '1px solid #2e2e2e', color: '#fff', fontSize: '13.5px', padding: '10px 14px', borderRadius: '6px', outline: 'none' }}>
+                  <option value="">Choose Column...</option>
                   {(tableSchema.columns || []).map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
                 </select>
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', color: '#9ca3af', marginBottom: 6 }}>Overwriting Value</label>
-                <input value={bulkEditValue} onChange={e => setBulkEditValue(e.target.value)} style={NeonStyle.input} placeholder="Insert value parameters" />
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#888888', letterSpacing: '0.05em', marginBottom: '6px', fontWeight: '700' }}>Value Override Assignment</label>
+                <input type="text" value={bulkEditValue} onChange={e => setBulkEditValue(e.target.value)} placeholder="Overwrite string parameter" style={{ backgroundColor: '#191919', border: '1px solid #2e2e2e', color: '#fff', fontSize: '13.5px', padding: '10px 14px', borderRadius: '6px', outline: 'none' }} />
               </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              <button onClick={() => setShowBulkEdit(false)} style={NeonStyle.btnSecondary}>Cancel</button>
-              <button onClick={handleBulkEdit} style={NeonStyle.btnPrimary}>Execute Write Batch</button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+              <button onClick={() => setShowBulkEdit(false)} style={styles.btnSecondary}>Cancel</button>
+              <button onClick={handleBulkEdit} style={styles.btnAccent}>Execute Writes</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Add Row Modal ────────────────────────────────────────────────────── */}
+      {/* ── Insert Record Modal ──────────────────────────────────────────────── */}
       {showAddRow && (
-        <div style={NeonStyle.modalOverlay}>
-          <div style={{ ...NeonStyle.panelCard, width: '100%', maxWidth: '640px', padding: '24px' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', color: '#ffffff' }}>Insert Record: {selectedTable}</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', maxHeight: '420px', overflowY: 'auto', paddingRight: '8px' }}>
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalCard, maxWidth: '640px' }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', color: '#fff' }}>Insert Record: {selectedTable}</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', maxHeight: '380px', overflowY: 'auto' }}>
               {addRowSchema.map(col => (
-                <div key={col.name}>
-                  <label style={{ display: 'block', fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '6px' }}>
-                    {col.name} <span style={{ color: '#6b7280', fontSize: '10px' }}>({col.type})</span>
-                  </label>
-                  <input 
-                    type="text" 
-                    value={addRowValues[col.name] ?? ''} 
-                    onChange={e => setAddRowValues(v => ({ ...v, [col.name]: e.target.value }))} 
-                    style={NeonStyle.input} 
-                    placeholder="NULL"
-                  />
+                <div key={col.name} style={{ display: 'flex', flexDirection: 'column' }}>
+                  <label style={{ fontSize: '11.5px', textTransform: 'uppercase', color: '#888888', marginBottom: '6px' }}>{col.name} <span style={{ color: '#555', fontSize: '9.5px' }}>({col.type})</span></label>
+                  <input type="text" value={addRowValues[col.name] ?? ''} onChange={e => setAddRowValues({ ...addRowValues, [col.name]: e.target.value })} placeholder="NULL" style={{ backgroundColor: '#191919', border: '1px solid #2e2e2e', color: '#fff', fontSize: '13px', padding: '8px 12px', borderRadius: '6px', outline: 'none' }} />
                 </div>
               ))}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
-              <button onClick={() => setShowAddRow(false)} style={NeonStyle.btnSecondary}>Cancel</button>
-              <button onClick={handleAddRow} style={NeonStyle.btnPrimary}>Commit Record</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Foreign Key Modal ────────────────────────────────────────────────── */}
-      {showFkModal && (
-        <div style={NeonStyle.modalOverlay}>
-          <div style={{ ...NeonStyle.panelCard, width: '100%', maxWidth: '820px', padding: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ margin: 0, fontSize: '16px', color: '#ffffff' }}>Foreign Key Lookup: {fkModalState.table}</h3>
-              <button onClick={closeFkModal} style={NeonStyle.btnSecondary}>Close Table View</button>
-            </div>
-            <div style={{ overflowX: 'auto', border: '1px solid #1f2128', borderRadius: '8px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                <thead>
-                  <tr style={{ background: '#0e1013', borderBottom: '1px solid #1f2128' }}>
-                    {(fkModalState.cols || []).map(c => <th key={c} style={{ padding: '12px 14px', fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase' }}>{c}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(fkModalState.rows || []).map((r, i) => (
-                    <tr key={i} onClick={() => {
-                      const fkTo = fkModalState.fkTo;
-                      const targetRow = fkModalState.targetRowId;
-                      const targetCol = fkModalState.targetCol;
-                      if (fkTo && typeof targetRow !== 'undefined' && targetCol) {
-                        const newVal = r[fkTo];
-                        setEditedCells(prev => ({ ...prev, [`${targetRow}::${targetCol}`]: newVal }));
-                      }
-                      setShowFkModal(false);
-                    }} style={{ borderBottom: '1px solid #14161a', cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = 'rgba(0, 229, 153, 0.04)'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
-                      {(fkModalState.cols || []).map(col => <td key={col} style={{ padding: '12px 14px', color: '#f3f4f6', fontSize: '13px' }}>{String(r[col] ?? 'NULL')}</td>)}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <button onClick={() => setShowAddRow(false)} style={styles.btnSecondary}>Cancel</button>
+              <button onClick={handleAddRow} style={styles.btnAccent}>Persist Record</button>
             </div>
           </div>
         </div>
@@ -1080,88 +1090,67 @@ export default function SuperAdmin() {
 
       {/* ── Password Reset Modal ────────────────────────────────────────────── */}
       {pwModal && (
-        <div style={NeonStyle.modalOverlay}>
-          <div style={{ ...NeonStyle.panelCard, width: '100%', maxWidth: '400px', padding: '24px' }}>
-            <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', color: '#ffffff' }}>Reset Directory Password</h3>
-            <p style={{ color: '#9ca3af', fontSize: '13px', margin: '0 0 20px 0' }}>Assign fresh session passwords for <strong style={{ color: '#ffffff' }}>{pwModal.name}</strong> ({pwModal.email}).</p>
-            
-            {pwMsg && (
-              <div style={{
-                background: pwMsg.includes('updated') ? 'rgba(0, 229, 153, 0.05)' : 'rgba(239, 68, 68, 0.05)',
-                border: `1px solid ${pwMsg.includes('updated') ? 'rgba(0, 229, 153, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
-                borderRadius: '6px', padding: '10px 12px', color: pwMsg.includes('updated') ? '#00e599' : '#f87171', fontSize: '13px', marginBottom: '16px'
-              }}>{pwMsg}</div>
-            )}
-
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '6px' }}>Fresh Password Key</label>
-              <input type="text" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Minimum 6 characters" style={NeonStyle.input} />
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalCard}>
+            <h3 style={{ margin: '0 0 4px 0', fontSize: '16px', color: '#fff' }}>Bypass Profile Password Assignment</h3>
+            <p style={{ color: '#888888', fontSize: '13.5px', lineHeight: '1.5', margin: '0 0 20px 0' }}>Commit high-level password hashes bypassing verification pipelines for <strong>{pwModal.name}</strong>.</p>
+            {pwMsg && <div style={{ backgroundColor: 'rgba(52, 213, 154, 0.05)', border: '1px solid rgba(52, 213, 154, 0.2)', color: '#34D59A', fontSize: '13px', padding: '8px 12px', borderRadius: '6px', marginBottom: '16px' }}>{pwMsg}</div>}
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#888888', marginBottom: '6px', fontWeight: '700' }}>Fresh Core Password Override</label>
+              <input type="text" value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Minimum 6 characters" style={{ backgroundColor: '#191919', border: '1px solid #2e2e2e', color: '#fff', fontSize: '13.5px', padding: '10px 14px', borderRadius: '6px', outline: 'none' }} />
             </div>
-
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button onClick={() => { setPwModal(null); setPwMsg(''); }} style={NeonStyle.btnSecondary}>Cancel</button>
-              <button onClick={handlePasswordChange} style={NeonStyle.btnPrimary}>Commit Password</button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+              <button onClick={() => { setPwModal(null); setPwMsg(''); }} style={styles.btnSecondary}>Cancel</button>
+              <button onClick={handlePasswordChange} style={styles.btnAccent}>Commit Override</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Create Admin Modal ───────────────────────────────────────────────── */}
+      {/* ── Provision Administrator Modal ────────────────────────────────────── */}
       {showCreate && (
-        <div style={NeonStyle.modalOverlay}>
-          <div style={{ ...NeonStyle.panelCard, width: '100%', maxWidth: '440px', padding: '24px' }}>
-            <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', color: '#ffffff' }}>Provision Administrator Console</h3>
-            
-            {createMsg && (
-              <div style={{
-                background: createMsg.includes('successfully') ? 'rgba(0, 229, 153, 0.05)' : 'rgba(239, 68, 68, 0.05)',
-                border: `1px solid ${createMsg.includes('successfully') ? 'rgba(0, 229, 153, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
-                borderRadius: '6px', padding: '10px 12px', color: createMsg.includes('successfully') ? '#00e599' : '#f87171', fontSize: '13px', marginBottom: '16px'
-              }}>{createMsg}</div>
-            )}
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '24px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '6px' }}>Full Name</label>
-                <input type="text" value={createForm.name} onChange={e => setCreateForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Alexis Carter" style={NeonStyle.input} />
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalCard}>
+            <h3 style={{ margin: '0 0 20px 0', fontSize: '16px', color: '#fff' }}>Provision Platform Administrator</h3>
+            {createMsg && <div style={{ backgroundColor: 'rgba(52, 213, 154, 0.05)', border: '1px solid rgba(52, 213, 154, 0.2)', color: '#34D59A', fontSize: '13px', padding: '8px 12px', borderRadius: '6px', marginBottom: '16px' }}>{createMsg}</div>}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#888888', marginBottom: '6px', fontWeight: '700' }}>Identity Full Name</label>
+                <input type="text" value={createForm.name} onChange={e => setCreateForm({ ...createForm, name: e.target.value })} placeholder=" Alexis Smith" style={{ backgroundColor: '#191919', border: '1px solid #2e2e2e', color: '#fff', fontSize: '13.5px', padding: '10px 14px', borderRadius: '6px', outline: 'none' }} />
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '6px' }}>Email Address</label>
-                <input type="email" value={createForm.email} onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))} placeholder="e.g. alexis@neon.tech" style={NeonStyle.input} />
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#888888', marginBottom: '6px', fontWeight: '700' }}>Platform Email ID</label>
+                <input type="email" value={createForm.email} onChange={e => setCreateForm({ ...createForm, email: e.target.value })} placeholder="alexis@domain.com" style={{ backgroundColor: '#191919', border: '1px solid #2e2e2e', color: '#fff', fontSize: '13.5px', padding: '10px 14px', borderRadius: '6px', outline: 'none' }} />
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '6px' }}>Temporary Password</label>
-                <input type="text" value={createForm.password} onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))} placeholder="Minimum 6 characters" style={NeonStyle.input} />
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#888888', marginBottom: '6px', fontWeight: '700' }}>Platform Core Password</label>
+                <input type="text" value={createForm.password} onChange={e => setCreateForm({ ...createForm, password: e.target.value })} placeholder="Minimum 6 constraints" style={{ backgroundColor: '#191919', border: '1px solid #2e2e2e', color: '#fff', fontSize: '13.5px', padding: '10px 14px', borderRadius: '6px', outline: 'none' }} />
               </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '6px' }}>Functional Role Profile</label>
-                <select value={createForm.role} onChange={e => setCreateForm(f => ({ ...f, role: e.target.value }))} style={NeonStyle.input}>
-                  <option value="admin">System Administrator</option>
-                  <option value="manager">System Manager</option>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <label style={{ fontSize: '11px', textTransform: 'uppercase', color: '#888888', marginBottom: '6px', fontWeight: '700' }}>Access Constraints Level</label>
+                <select value={createForm.role} onChange={e => setCreateForm({ ...createForm, role: e.target.value })} style={{ backgroundColor: '#191919', border: '1px solid #2e2e2e', color: '#fff', fontSize: '13.5px', padding: '10px 14px', borderRadius: '6px', outline: 'none' }}>
+                  <option value="admin">Administrative Scope</option>
+                  <option value="manager">Manager Operations Scope</option>
                 </select>
               </div>
             </div>
-
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button onClick={() => { setShowCreate(false); setCreateMsg(''); }} style={NeonStyle.btnSecondary}>Cancel</button>
-              <button onClick={handleCreateAdmin} style={NeonStyle.btnPrimary}>Commit Profile</button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+              <button onClick={() => { setShowCreate(false); setCreateMsg(''); }} style={styles.btnSecondary}>Cancel</button>
+              <button onClick={handleCreateAdmin} style={styles.btnAccent}>Commit Record</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Delete Confirmation Modal ────────────────────────────────────────── */}
+      {/* ── Purge User Confirmation Modal ────────────────────────────────────── */}
       {deleteConfirm && (
-        <div style={NeonStyle.modalOverlay}>
-          <div style={{ ...NeonStyle.panelCard, width: '100%', maxWidth: '400px', padding: '24px' }}>
-            <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', color: '#f87171' }}>Purge Record Confirmation</h3>
-            <p style={{ color: '#9ca3af', fontSize: '13.5px', lineHeight: '1.5', margin: '0 0 24px 0' }}>
-              Are you absolutely sure you want to permanently delete <strong style={{ color: '#ffffff' }}>{deleteConfirm.name}</strong> ({deleteConfirm.email})? 
-              This process operates sequentially on databases and cannot be rolled back.
-            </p>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button onClick={() => setDeleteConfirm(null)} style={NeonStyle.btnSecondary}>Abort</button>
-              <button onClick={() => handleDelete(deleteConfirm.id)} style={NeonStyle.btnDanger}>Execute Purge</button>
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalCard, borderColor: 'rgba(239, 68, 68, 0.4)' }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', color: '#fca5a5' }}>Drop Identity Record</h3>
+            <p style={{ color: '#888888', fontSize: '13.5px', lineHeight: '1.5', margin: '0 0 24px 0' }}>Are you absolutely sure you want to permanently delete <strong style={{ color: '#fff' }}>{deleteConfirm.name}</strong> from directory catalog databases?</p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button onClick={() => setDeleteConfirm(null)} style={styles.btnSecondary}>Abort</button>
+              <button onClick={() => handleDeleteUser(deleteConfirm.id)} style={{ backgroundColor: 'rgba(239, 68, 68, 0.2)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#fca5a5', padding: '8px 14px', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}>Execute Deletion</button>
             </div>
           </div>
         </div>
