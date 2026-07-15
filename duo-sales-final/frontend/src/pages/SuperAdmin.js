@@ -14,6 +14,12 @@ export default function SuperAdmin() {
   const [users, setUsers] = useState([]);
   const [tab, setTab] = useState('admins'); // 'admins' | 'all-users'
   const [dataLoaded, setDataLoaded] = useState(false);
+  // SQL editor
+  const [sqlText, setSqlText] = useState('SELECT * FROM users LIMIT 50');
+  const [sqlRows, setSqlRows] = useState([]);
+  const [sqlCols, setSqlCols] = useState([]);
+  const [sqlMsg, setSqlMsg] = useState('');
+  const [editableTable, setEditableTable] = useState(null); // detected table name for simple updates
 
   // Password change modal
   const [pwModal, setPwModal] = useState(null); // user object
@@ -184,6 +190,7 @@ export default function SuperAdmin() {
         {[
           { key: 'admins', label: `Admins & Managers (${admins.length})` },
           { key: 'all-users', label: `All Users (${users.length})` }
+          ,{ key: 'sql', label: `SQL Runner` }
         ].map(t => (
           <button key={t.key} onClick={() => setTab(t.key)}
             style={{
@@ -199,6 +206,79 @@ export default function SuperAdmin() {
       {tab === 'admins' && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
           <button onClick={() => setShowCreate(true)} style={BTN_PRIMARY}>+ Create New Admin</button>
+        </div>
+      )}
+
+      {/* SQL Runner */}
+      {tab === 'sql' && (
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+            <textarea value={sqlText} onChange={e => setSqlText(e.target.value)} rows={6}
+              style={{ width: '100%', borderRadius: 8, padding: 12, background: '#0f1117', border: '1px solid #252840', color: '#e2e4eb', fontFamily: 'monospace' }} />
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+            <button onClick={async () => {
+              setSqlMsg('');
+              try {
+                const res = await axios.post('/api/superadmin/sql/execute', { sql: sqlText }, getAuthHeader());
+                const rows = res.data.rows || [];
+                setSqlRows(rows);
+                setSqlCols(rows.length ? Object.keys(rows[0]) : []);
+
+                // try to detect simple table name from FROM clause for editing
+                const m = sqlText.match(/FROM\s+([a-zA-Z0-9_]+)/i);
+                if (m) setEditableTable(m[1]); else setEditableTable(null);
+              } catch (err) {
+                setSqlMsg(err.response?.data?.error || err.message || 'Query failed');
+                setSqlRows([]);
+                setSqlCols([]);
+                setEditableTable(null);
+              }
+            }} style={BTN_PRIMARY}>Run</button>
+            <button onClick={() => { setSqlRows([]); setSqlCols([]); setSqlMsg(''); }} style={{ ...BTN_WARN }}>Clear</button>
+          </div>
+          {sqlMsg && <div style={{ color: '#f87171', marginBottom: 8 }}>{sqlMsg}</div>}
+
+          <div style={{ background: '#141728', border: '1px solid #252840', borderRadius: 12, overflow: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#1a1d2e' }}>
+                  {sqlCols.map(c => (
+                    <th key={c} style={{ padding: '8px 12px', textAlign: 'left', fontSize: 12, color: '#7a7f96' }}>{c}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sqlRows.map((r, ri) => (
+                  <tr key={ri} style={{ borderBottom: '1px solid #1e2136' }}>
+                    {sqlCols.map(c => (
+                      <td key={c} style={{ padding: '8px 12px', color: '#e2e4eb' }}>
+                        {editableTable && c !== 'id' ? (
+                          <input defaultValue={r[c]} onBlur={async (e) => {
+                            const newVal = e.target.value;
+                            if (String(newVal) === String(r[c])) return;
+                            try {
+                              await axios.post('/api/superadmin/sql/update-cell', { table: editableTable, id: r.id, column: c, value: newVal }, getAuthHeader());
+                              setSqlMsg('Updated successfully');
+                              // reflect locally
+                              const copy = [...sqlRows]; copy[ri] = { ...copy[ri], [c]: newVal }; setSqlRows(copy);
+                            } catch (err) {
+                              setSqlMsg(err.response?.data?.error || 'Update failed');
+                            }
+                          }} style={{ width: '100%', background: 'transparent', border: '1px solid transparent', color: '#e2e4eb' }} />
+                        ) : (
+                          <span>{String(r[c])}</span>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                {sqlRows.length === 0 && (
+                  <tr><td style={{ padding: 20, color: '#7a7f96' }}>No rows</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

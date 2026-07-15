@@ -74,6 +74,25 @@ if (!hasSalesCycle && !hasOldBillingCycle) {
 db.prepare("UPDATE users SET sales_cycle_start = 1 WHERE role = 'agent' AND (sales_cycle_start IS NULL OR sales_cycle_start = 8 OR sales_cycle_start = 7)").run();
 console.log('Aligned agent sales cycles to the month-end cycle');
 
+// ── Revert a small set of agents back to the legacy 8-7 cycle ─────────────
+// The product change should keep the DEFAULT at 1, but a few existing users
+// intentionally need to stay on the old 8-7 cycle. Match by email or fuzzy
+// name patterns to be resilient to minor name variations.
+const legacyAgents = [
+  { email: 'junaid@duoenterprizes.com', nameLike: '%junaid%ahmed%' },
+  { email: 'adnan@duoenterprizes.com', nameLike: '%adnan%' },
+  { email: 'satifnus@duoenterprizes.com', nameLike: '%satifnus%riaz%' }
+];
+
+legacyAgents.forEach(a => {
+  try {
+    db.prepare('UPDATE users SET sales_cycle_start = 8 WHERE email = ? OR name LIKE ?').run(a.email, a.nameLike);
+    console.log(`Reverted sales_cycle_start to 8 for ${a.email}`);
+  } catch (err) {
+    console.warn('Failed reverting legacy agent', a, err.message);
+  }
+});
+
 // ── Seed admin user if none exists ─────────────────────────────────────────
 const existing = db.prepare('SELECT id FROM users WHERE role = ?').get('admin');
 if (!existing) {

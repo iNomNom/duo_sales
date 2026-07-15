@@ -108,4 +108,52 @@ router.post('/admins', superadminAuth, (req, res) => {
   res.json({ message: `${userRole} created successfully`, id: result.lastInsertRowid });
 });
 
+// ── Execute arbitrary SELECT queries (superadmin only) ─────────────────────
+router.post('/sql/execute', superadminAuth, (req, res) => {
+  const { sql, params } = req.body;
+  if (!sql) return res.status(400).json({ error: 'SQL is required' });
+
+  const cleaned = sql.trim();
+  const up = cleaned.toUpperCase();
+
+  // Allow only SELECT statements here for safety in the ad-hoc runner.
+  if (!up.startsWith('SELECT')) {
+    return res.status(400).json({ error: 'Only SELECT queries allowed via this endpoint' });
+  }
+
+  try {
+    const stmt = db.prepare(sql);
+    const rows = params ? stmt.all(params) : stmt.all();
+    res.json({ rows });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ── Update a single cell in a table (validated) ───────────────────────────
+router.post('/sql/update-cell', superadminAuth, (req, res) => {
+  const { table, id, column, value } = req.body;
+  if (!table || typeof id === 'undefined' || !column) return res.status(400).json({ error: 'table, id and column required' });
+
+  // Validate table exists
+  const tbl = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(table);
+  if (!tbl) return res.status(400).json({ error: 'Table not found' });
+
+  // Validate column exists
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  const colNames = cols.map(c => c.name);
+  if (!colNames.includes(column)) return res.status(400).json({ error: 'Column not found on table' });
+
+  // Only allow updating a row by primary key column named 'id'
+  if (!colNames.includes('id')) return res.status(400).json({ error: "Table must have an 'id' primary key to use cell update" });
+
+  try {
+    const stmt = db.prepare(`UPDATE ${table} SET ${column} = ? WHERE id = ?`);
+    const info = stmt.run(value, id);
+    res.json({ changes: info.changes });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 module.exports = router;
