@@ -348,10 +348,13 @@ export default function SuperAdmin() {
 
   const displayData = tab === 'admins' ? admins : users;
 
-  const INPUT = { width: '100%', background: '#1a1d2e', border: '1px solid #2a2d3e', borderRadius: 8, padding: '10px 14px', color: '#e2e4eb', fontSize: 14, outline: 'none', boxSizing: 'border-box' };
-  const BTN_PRIMARY = { padding: '10px 24px', background: 'linear-gradient(135deg,#4f8ef7,#6c63ff)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' };
-  const BTN_DANGER = { padding: '8px 16px', background: 'rgba(248,113,113,0.15)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 8, color: '#f87171', fontSize: 13, fontWeight: 500, cursor: 'pointer' };
-  const BTN_WARN = { padding: '8px 16px', background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: 8, color: '#fbbf24', fontSize: 13, fontWeight: 500, cursor: 'pointer' };
+  const INPUT = { width: '100%', background: '#13182d', border: '1px solid #202a4c', borderRadius: 12, padding: '12px 14px', color: '#e8ecff', fontSize: 14, outline: 'none', boxSizing: 'border-box' };
+  const BTN_PRIMARY = { padding: '10px 20px', background: 'linear-gradient(135deg,#4f8ef7,#6c63ff)', border: 'none', borderRadius: 12, color: '#fff', fontSize: 14, fontWeight: 600, cursor: 'pointer' };
+  const BTN_DANGER = { padding: '8px 14px', background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 12, color: '#f87171', fontSize: 13, fontWeight: 600, cursor: 'pointer' };
+  const BTN_WARN = { padding: '8px 14px', background: 'rgba(99,102,241,0.14)', border: '1px solid rgba(99,102,241,0.35)', borderRadius: 12, color: '#c7d2fe', fontSize: 13, fontWeight: 600, cursor: 'pointer' };
+  const ACTION_BTN = { padding: '8px 12px', background: '#101528', border: '1px solid #1f2c55', borderRadius: 999, color: '#d1d9ff', fontSize: 13, cursor: 'pointer' };
+  const ICON_BTN = { width: 34, height: 34, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 999, background: '#141d3a', border: '1px solid #24355e', color: '#c8d1ff', cursor: 'pointer' };
+  const ICON_BTN_PRIMARY = { ...ICON_BTN, background: '#4f8ef7', border: 'none', color: '#fff' };
 
   // ── Secret Key Entry Screen ──────────────────────────────────────────────
   if (!authed) {
@@ -477,25 +480,23 @@ export default function SuperAdmin() {
             </div>
           </div>
 
-          <div style={{ background: '#141728', border: '1px solid #252840', borderRadius: 16, padding: 18 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ background: '#141728', border: '1px solid #252840', borderRadius: 16, padding: 18, display: 'flex', flexDirection: 'column', minHeight: '720px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: '#e2e4eb' }}>{selectedTable || 'Select a table'}</div>
                 <div style={{ fontSize: 12, color: '#7a7f96', marginTop: 4 }}>{selectedTable ? `${tableTotal.toLocaleString()} rows` : 'Choose a table to browse data'}</div>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <button onClick={() => setShowRawSql(false)} style={{ padding: '6px 10px', background: showRawSql ? '#1a1d2e' : '#4f8ef7', color: showRawSql ? '#a0a3b5' : '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>Table Browse</button>
-                  <button onClick={() => setShowRawSql(true)} style={{ padding: '6px 10px', background: showRawSql ? '#4f8ef7' : '#1a1d2e', color: showRawSql ? '#fff' : '#a0a3b5', border: 'none', borderRadius: 8, cursor: 'pointer' }}>Raw SQL</button>
-                </div>
-                <button onClick={() => loadTableData(selectedTable, tablePage)} disabled={!selectedTable || tableLoading} style={BTN_WARN}>Reload</button>
-                <button onClick={() => openAddRow()} disabled={!selectedTable || tableLoading} style={BTN_WARN}>+ Add Row</button>
-                <button onClick={() => setShowAddColumn(true)} disabled={!selectedTable} style={BTN_WARN}>+ Add Column</button>
-                <button onClick={() => setShowBulkEdit(true)} disabled={!selectedTable || selectedIds.size === 0} style={{ ...BTN_WARN }}>Bulk Edit</button>
-                <button onClick={handleDeleteSelected} disabled={!selectedTable || selectedIds.size === 0 || tableLoading} style={{ ...BTN_DANGER }}>Delete Selected</button>
-                <button onClick={() => handleExport(true)} disabled={!selectedTable || selectedIds.size === 0} style={{ ...BTN_WARN }}>Export Selected</button>
-                <button onClick={() => handleExport(false)} disabled={!selectedTable} style={{ ...BTN_WARN }}>Export All</button>
-                <button onClick={saveTableChanges} disabled={!selectedTable || tableLoading || Object.keys(editedCells).length === 0} style={BTN_PRIMARY}>Save Changes</button>
+                <button onClick={() => setShowRawSql(false)} style={{ ...ACTION_BTN, background: showRawSql ? '#101528' : '#4f8ef7', color: showRawSql ? '#c8d1ff' : '#fff' }}>Table</button>
+                <button onClick={() => setShowRawSql(true)} style={{ ...ACTION_BTN, background: showRawSql ? '#4f8ef7' : '#101528', color: showRawSql ? '#fff' : '#c8d1ff' }}>SQL</button>
+                <button onClick={() => loadTableData(selectedTable, tablePage)} disabled={!selectedTable || tableLoading} style={ACTION_BTN}>Reload</button>
+                <button onClick={() => openAddRow()} disabled={!selectedTable || tableLoading} style={ACTION_BTN}>+ Row</button>
+                <button onClick={() => setShowAddColumn(true)} disabled={!selectedTable} style={ACTION_BTN}>+ Col</button>
+                <button onClick={() => setShowBulkEdit(true)} disabled={!selectedTable || selectedIds.size === 0} style={ACTION_BTN}>Bulk</button>
+                <button onClick={handleDeleteSelected} disabled={!selectedTable || selectedIds.size === 0 || tableLoading} style={{ ...ACTION_BTN, color: '#f87171', borderColor: 'rgba(248,113,113,0.3)' }}>Delete</button>
+                <button onClick={() => handleExport(true)} disabled={!selectedTable || selectedIds.size === 0} style={ACTION_BTN}>Export</button>
+                <button onClick={() => handleExport(false)} disabled={!selectedTable} style={ACTION_BTN}>All</button>
+                <button onClick={saveTableChanges} disabled={!selectedTable || tableLoading || Object.keys(editedCells).length === 0} style={BTN_PRIMARY}>Save</button>
               </div>
             </div>
 
@@ -587,7 +588,7 @@ export default function SuperAdmin() {
                   </div>
                 </div>
 
-                <div style={{ overflowX: 'auto' }}>
+                <div style={{ flex: 1, overflow: 'auto', maxHeight: 'calc(100vh - 430px)' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
                     <thead>
                       <tr style={{ background: '#1a1d2e' }}>
@@ -600,6 +601,9 @@ export default function SuperAdmin() {
                         {tableCols.map(col => (
                           <th key={col} style={{ padding: '10px 12px', textAlign: 'left', color: '#7a7f96', fontSize: 12, fontWeight: 700 }}>{col}</th>
                         ))}
+                        <th style={{ padding: '10px 12px', textAlign: 'right' }}>
+                          <button onClick={() => setShowAddColumn(true)} disabled={!selectedTable} style={ICON_BTN_PRIMARY}>+</button>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -626,20 +630,24 @@ export default function SuperAdmin() {
                                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                                     <div style={{ flex: 1 }} onDoubleClick={e => {
                                       const input = e.currentTarget.querySelector('input,select');
-                                      if (input) { input.readOnly = false; input.focus(); }
+                                      if (input) {
+                                        if (input.tagName === 'SELECT') input.disabled = false;
+                                        else input.readOnly = false;
+                                        input.focus();
+                                      }
                                     }}>
                                       { (type.includes('BOOL') || col.toLowerCase().startsWith('is_')) ? (
-                                        <select defaultValue={row[col] == null ? '' : String(row[col])} readOnly style={{ width: '100%', background: '#0f1117', border: '1px solid #252840', borderRadius: 8, padding: '10px 12px', color: '#e2e4eb', fontSize: 14 }} onBlur={e => { if (String(e.target.value) !== String(row[col])) setEditedCells(prev => ({ ...prev, [key]: e.target.value })); }}>
+                                        <select defaultValue={row[col] == null ? '' : String(row[col])} disabled style={{ width: '100%', background: '#0f1117', border: '1px solid #252840', borderRadius: 10, padding: '10px 12px', color: '#e2e4eb', fontSize: 14, cursor: 'pointer' }} onBlur={e => { if (String(e.target.value) !== String(row[col])) setEditedCells(prev => ({ ...prev, [key]: e.target.value })); e.target.disabled = true; }}>
                                           <option value="">NULL</option>
                                           <option value="1">TRUE</option>
                                           <option value="0">FALSE</option>
                                         </select>
                                       ) : type.includes('INT') ? (
-                                        <input type="number" defaultValue={row[col] ?? ''} readOnly onBlur={e => { if (String(e.target.value) !== String(row[col])) setEditedCells(prev => ({ ...prev, [key]: e.target.value })); }} style={{ width: '100%', background: '#0f1117', border: '1px solid #252840', borderRadius: 8, padding: '10px 12px', color: '#e2e4eb', fontSize: 14 }} />
+                                        <input type="number" defaultValue={row[col] ?? ''} readOnly style={{ width: '100%', background: '#0f1117', border: '1px solid #252840', borderRadius: 10, padding: '10px 12px', color: '#e2e4eb', fontSize: 14, cursor: 'text' }} onBlur={e => { if (String(e.target.value) !== String(row[col])) setEditedCells(prev => ({ ...prev, [key]: e.target.value })); e.target.readOnly = true; }} />
                                       ) : type.includes('DATE') || type.includes('TIME') ? (
-                                        <input type="date" defaultValue={row[col] ?? ''} readOnly onBlur={e => { if (String(e.target.value) !== String(row[col])) setEditedCells(prev => ({ ...prev, [key]: e.target.value })); }} style={{ width: '100%', background: '#0f1117', border: '1px solid #252840', borderRadius: 8, padding: '10px 12px', color: '#e2e4eb', fontSize: 14 }} />
+                                        <input type="date" defaultValue={row[col] ?? ''} readOnly style={{ width: '100%', background: '#0f1117', border: '1px solid #252840', borderRadius: 10, padding: '10px 12px', color: '#e2e4eb', fontSize: 14, cursor: 'text' }} onBlur={e => { if (String(e.target.value) !== String(row[col])) setEditedCells(prev => ({ ...prev, [key]: e.target.value })); e.target.readOnly = true; }} />
                                       ) : (
-                                        <input type="text" defaultValue={row[col] ?? ''} readOnly onBlur={e => { if (String(e.target.value) !== String(row[col])) setEditedCells(prev => ({ ...prev, [key]: e.target.value })); }} style={{ width: '100%', background: '#0f1117', border: '1px solid #252840', borderRadius: 8, padding: '10px 12px', color: '#e2e4eb', fontSize: 14 }} />
+                                        <input type="text" defaultValue={row[col] ?? ''} readOnly style={{ width: '100%', background: '#0f1117', border: '1px solid #252840', borderRadius: 10, padding: '10px 12px', color: '#e2e4eb', fontSize: 14, cursor: 'text' }} onBlur={e => { if (String(e.target.value) !== String(row[col])) setEditedCells(prev => ({ ...prev, [key]: e.target.value })); e.target.readOnly = true; }} />
                                       )}
                                     </div>
                                     {fk && (
