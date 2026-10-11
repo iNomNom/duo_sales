@@ -52,6 +52,24 @@ db.exec(`
     read       INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS notes (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL REFERENCES users(id),
+    title        TEXT DEFAULT '',
+    body         TEXT DEFAULT '',
+    color        TEXT DEFAULT 'default',
+    is_pinned    INTEGER DEFAULT 0,
+    is_archived  INTEGER DEFAULT 0,
+    is_trashed   INTEGER DEFAULT 0,
+    sort_order   INTEGER DEFAULT 0,
+    trashed_at   TEXT,                              -- when the note was moved to trash
+    created_at   TEXT DEFAULT (datetime('now')),
+    updated_at   TEXT DEFAULT (datetime('now'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_notes_user_collection ON notes(user_id, is_trashed, is_archived);
+  CREATE INDEX IF NOT EXISTS idx_notes_user_sort       ON notes(user_id, is_pinned, sort_order);
 `);
 
 // ── Migration: Add sales_cycle_start column if it doesn't exist ─────────

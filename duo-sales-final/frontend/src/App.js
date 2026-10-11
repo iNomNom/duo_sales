@@ -7,6 +7,7 @@ import Sales from './pages/Sales';
 import NewSale from './pages/NewSale';
 import Agents from './pages/Agents';
 import Settings from './pages/Settings';
+import Notes from './pages/Notes';
 import SuperAdmin from './pages/SuperAdmin';
 import Layout from './components/Layout';
 
@@ -29,6 +30,7 @@ export default function App() {
             <Route index element={<Dashboard />} />
             <Route path="sales" element={<Sales />} />
             <Route path="new-sale" element={<NewSale />} />
+            <Route path="notes" element={<Notes />} />
             <Route path="agents" element={<PrivateRoute adminOnly><Agents /></PrivateRoute>} />
             <Route path="settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
           </Route>

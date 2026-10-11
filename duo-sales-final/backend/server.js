@@ -16,6 +16,7 @@ app.use('/api/sales', require('./routes/sales'));
 app.use('/api/agents', require('./routes/agents'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/notes', require('./routes/notes'));
 app.use('/api/backup', require('./routes/backup'));
 app.use('/api/seed', require('./routes/seed'));
 app.use('/api/superadmin', require('./routes/superadmin'));
@@ -29,4 +30,8 @@ app.get('*', (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Duo Sales server running on port ${PORT}`));
+if (require.main === module) {
+  app.listen(PORT, () => console.log(`Duo Sales server running on port ${PORT}`));
+}
+
+module.exports = app;

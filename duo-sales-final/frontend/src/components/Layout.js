@@ -7,6 +7,7 @@ const nav = [
   { to: '/', label: 'Dashboard', icon: '▦', exact: true },
   { to: '/sales', label: 'All Sales', labelAgent: 'My Sales', icon: '☰' },
   { to: '/new-sale', label: 'New Sale', icon: '+' },
+  { to: '/notes', label: 'Notes', icon: '🗒' },
   { to: '/agents', label: 'Agents', icon: '◉', adminOnly: true },
   { to: '/settings', label: 'Settings', icon: '⚙' },
 ];
@@ -17,6 +18,18 @@ export default function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [showNotif, setShowNotif] = useState(false);
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(max-width: 768px)').matches
+  );
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  useEffect(() => {
+    if (!window.matchMedia) return;
+    const mq = window.matchMedia('(max-width: 768px)');
+    const onChange = () => { setIsMobile(mq.matches); setMobileNavOpen(false); };
+    mq.addEventListener ? mq.addEventListener('change', onChange) : mq.addListener(onChange);
+    return () => { mq.removeEventListener ? mq.removeEventListener('change', onChange) : mq.removeListener(onChange); };
+  }, []);
 
   const handleLogout = () => { logout(); navigate('/login'); };
 
@@ -39,11 +52,23 @@ export default function Layout() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg)' }}>
+      {/* Mobile nav backdrop */}
+      {isMobile && mobileNavOpen && (
+        <div
+          onClick={() => setMobileNavOpen(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 70, background: 'rgba(8,9,13,0.55)' }}
+        />
+      )}
       {/* Sidebar */}
       <aside style={{
         width: collapsed ? 60 : 220, flexShrink: 0, background: 'var(--bg2)',
         borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column',
-        transition: 'width 0.2s', overflow: 'hidden'
+        transition: 'width 0.2s', overflow: 'hidden',
+        ...(isMobile ? {
+          position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: 75,
+          transform: mobileNavOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.2s ease', width: 220,
+        } : {}),
       }}>
         {/* Logo */}
         <div style={{ padding: '20px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -57,7 +82,7 @@ export default function Layout() {
         {/* Nav */}
         <nav style={{ flex: 1, padding: '12px 8px' }}>
           {nav.filter(n => !n.adminOnly || user?.role === 'admin' || user?.role === 'manager').map(n => (
-            <NavLink key={n.to} to={n.to} end={n.exact}
+            <NavLink key={n.to} to={n.to} end={n.exact} onClick={() => setMobileNavOpen(false)}
               style={({ isActive }) => ({
                 display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px',
                 borderRadius: 8, marginBottom: 2, textDecoration: 'none', fontSize: 13,
@@ -93,9 +118,18 @@ export default function Layout() {
       </aside>
 
       {/* Main content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '100vh', minWidth: 0 }}>
         {/* Top bar with notifications */}
         <div style={{ padding: '8px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, background: 'var(--bg2)', flexShrink: 0 }}>
+          {isMobile && (
+            <button
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Open navigation menu"
+              style={{ marginRight: 'auto', padding: '6px 10px', background: 'transparent', border: '1px solid var(--border2)', borderRadius: 8, color: 'var(--muted)', fontSize: 14, cursor: 'pointer' }}
+            >
+              ☰
+            </button>
+          )}
           {/* Notification bell */}
           <div style={{ position: 'relative' }}>
             <button onClick={() => { setShowNotif(!showNotif); if (!showNotif) markAllRead(); }}
