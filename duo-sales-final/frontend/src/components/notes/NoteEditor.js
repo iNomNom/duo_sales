@@ -26,6 +26,18 @@ export default function NoteEditor({
   const [isPinned, setIsPinned] = useState(note ? !!note.isPinned : false);
   const [menu, setMenu] = useState(null);
 
+  // Resizable state
+  const [editorWidth, setEditorWidth] = useState(() => {
+    const saved = localStorage.getItem('duo_notes_editor_width');
+    return saved ? parseInt(saved, 10) : 620;
+  });
+  const [editorHeight, setEditorHeight] = useState(() => {
+    const saved = localStorage.getItem('duo_notes_editor_height');
+    if (saved) return parseInt(saved, 10);
+    return Math.min(window.innerHeight * 0.5, 500);
+  });
+  const [isResizing, setIsResizing] = useState(null); // 'width' | 'height' | 'both' | null
+
   const dialogRef = useRef(null);
   const titleRef = useRef(null);
   const bodyRef = useRef(null);
@@ -35,6 +47,14 @@ export default function NoteEditor({
   draftRef.current = { id: draftId, title, body, color, isPinned };
 
   const palette = NOTE_COLORS[color] || NOTE_COLORS.default;
+
+  // Persist editor dimensions
+  useEffect(() => {
+    localStorage.setItem('duo_notes_editor_width', editorWidth.toString());
+  }, [editorWidth]);
+  useEffect(() => {
+    localStorage.setItem('duo_notes_editor_height', editorHeight.toString());
+  }, [editorHeight]);
 
   // ── Focus management ───────────────────────────────────────────────────────
   const restoreFocusRef = useRef(null);
@@ -94,7 +114,7 @@ export default function NoteEditor({
     const el = bodyRef.current;
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 480)}px`;
+    el.style.height = `${Math.min(el.scrollHeight, window.innerHeight - 200)}px`;
   }, []);
   useEffect(() => { growBody(); }, [body, growBody]);
 
@@ -162,6 +182,37 @@ export default function NoteEditor({
   const closeRef = useRef(null);
   closeRef.current = close;
 
+  // ── Resize handlers ───────────────────────────────────────────────────────
+  const handleResizeStart = useCallback((e, direction) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsResizing(direction);
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startWidth = editorWidth;
+    const startHeight = editorHeight;
+
+    const handleMouseMove = (moveEvent) => {
+      if (direction === 'width' || direction === 'both') {
+        const newWidth = Math.max(400, Math.min(window.innerWidth - 32, startWidth + (moveEvent.clientX - startX)));
+        setEditorWidth(newWidth);
+      }
+      if (direction === 'height' || direction === 'both') {
+        const newHeight = Math.max(200, Math.min(window.innerHeight - 64, startHeight + (moveEvent.clientY - startY)));
+        setEditorHeight(newHeight);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(null);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [editorWidth, editorHeight]);
+
   return createPortal(
     <div
       onMouseDown={(e) => { if (e.target === e.currentTarget) close(); }}
@@ -180,10 +231,21 @@ export default function NoteEditor({
         tabIndex={-1}
         className="note-appear"
         style={{
-          width: 'min(620px, 100%)', maxHeight: '78vh', display: 'flex', flexDirection: 'column',
-          background: palette.bg, color: CARD_TEXT, borderRadius: 12,
-          border: '1px solid var(--border2)', boxShadow: '0 18px 60px rgba(0,0,0,0.55)',
-          padding: '14px 16px 8px', position: 'relative', outline: 'none',
+          width: `${editorWidth}px`,
+          height: `${editorHeight}px`,
+          maxHeight: 'calc(100vh - 32px)',
+          display: 'flex',
+          flexDirection: 'column',
+          background: palette.bg,
+          color: CARD_TEXT,
+          borderRadius: 12,
+          border: '1px solid var(--border2)',
+          boxShadow: '0 18px 60px rgba(0,0,0,0.55)',
+          padding: '14px 16px 8px',
+          position: 'relative',
+          outline: 'none',
+          resize: 'none',
+          cursor: isResizing ? (isResizing === 'width' ? 'e-resize' : isResizing === 'height' ? 's-resize' : 'se-resize') : 'default',
         }}
       >
         {/* Title + pin */}
@@ -223,11 +285,11 @@ export default function NoteEditor({
           }}
           placeholder="Take a note…"
           aria-label="Note body"
-          rows={isNew && !body ? 4 : 2}
+          rows={isNew && !body ? 8 : 4}
           style={{
             flex: 1, background: 'transparent', border: 'none', outline: 'none',
             color: CARD_TEXT, fontSize: 13.5, lineHeight: 1.6, resize: 'none',
-            padding: '6px 0 10px', fontFamily: 'inherit', minHeight: 72,
+            padding: '6px 0 10px', fontFamily: 'inherit', minHeight: 100,
             overflowY: 'auto', whiteSpace: 'pre-wrap',
           }}
         />
@@ -293,6 +355,71 @@ export default function NoteEditor({
             Done
           </button>
         </div>
+
+        {/* Resize handles */}
+        <div
+          onMouseDown={(e) => handleResizeStart(e, 'both')}
+          style={{
+            position: 'absolute',
+            bottom: 2,
+            right: 2,
+            width: 24,
+            height: 24,
+            cursor: 'se-resize',
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'flex-end',
+            padding: '4px',
+            zIndex: 10,
+            borderRadius: 4,
+            transition: 'background 0.15s',
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.08)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+        >
+          <div style={{
+            width: 0,
+            height: 0,
+            borderStyle: 'solid',
+            borderWidth: '0 0 10px 10px',
+            borderColor: 'transparent transparent var(--muted) transparent',
+            opacity: 0.6,
+          }} />
+        </div>
+
+        <div
+          onMouseDown={(e) => handleResizeStart(e, 'width')}
+          style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            width: 6,
+            height: '100%',
+            cursor: 'e-resize',
+            borderTopRightRadius: 12,
+            borderBottomRightRadius: 12,
+            zIndex: 5,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.05)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+        />
+
+        <div
+          onMouseDown={(e) => handleResizeStart(e, 'height')}
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            width: '100%',
+            height: 6,
+            cursor: 's-resize',
+            borderBottomLeftRadius: 12,
+            borderBottomRightRadius: 12,
+            zIndex: 5,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.05)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+        />
       </div>
     </div>,
     document.body

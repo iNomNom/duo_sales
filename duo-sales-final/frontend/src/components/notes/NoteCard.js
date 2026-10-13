@@ -59,7 +59,7 @@ export function CardShell({
   const btnHover = e => { Object.assign(e.currentTarget.style, iconBtnHover); };
   const btnOut = e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = CARD_MUTED; };
 
-  const previewMax = view === 'grid' ? 200 : 40;
+  const previewMax = view === 'grid' ? 350 : 80;
 
   return (
     <div
@@ -87,7 +87,7 @@ export function CardShell({
         transition: (style && style.transition) || 'box-shadow 0.15s ease',
         boxShadow: isDragging ? '0 8px 24px rgba(0,0,0,0.4)' : 'none',
         position: 'relative',
-        minHeight: 40,
+        minHeight: 100,
         opacity: isDragging ? 0.35 : 1,
         outline: isDragging ? '2px dashed var(--border2)' : undefined,
         outlineOffset: 2,
@@ -134,7 +134,8 @@ export function CardShell({
         <div style={{
           fontSize: 13, lineHeight: '20px', whiteSpace: 'pre-wrap',
           wordBreak: 'break-word', maxHeight: previewMax, overflow: 'hidden',
-          marginBottom: 6,
+          marginBottom: 6, display: '-webkit-box', WebkitLineClamp: view === 'grid' ? 10 : 3,
+          WebkitBoxOrient: 'vertical',
         }}>
           <Highlighted text={body} query={query} />
         </div>
